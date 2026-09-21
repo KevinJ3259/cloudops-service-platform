@@ -27,9 +27,11 @@ select,
 textarea {
   font: inherit;
 }
+
 button {
   cursor: pointer;
 }
+
 .app {
   min-height: 100vh;
 }
@@ -119,6 +121,7 @@ main {
   color: #f8fafc;
   font-size: 2rem;
 }
+
 .stat-card .healthy {
   color: #4ade80;
   font-size: 1.35rem;
@@ -169,6 +172,62 @@ main {
   transform: translateY(-1px);
 }
 
+/* Incident Filters */
+
+.incident-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 18px 28px;
+  border-bottom: 1px solid #1e293b;
+  background: #0d1929;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 190px;
+}
+
+.filter-group label {
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filter-group select {
+  min-height: 42px;
+  padding: 9px 36px 9px 12px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  outline: none;
+  background: #07111f;
+  color: #e5e7eb;
+}
+
+.filter-group select:focus {
+  border-color: #3b82f6;
+}
+
+.clear-filters {
+  min-height: 42px;
+  padding: 9px 16px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #0f1c2e;
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+.clear-filters:hover {
+  border-color: #475569;
+  background: #16243a;
+  color: #f8fafc;
+}
+
 .incident-form {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -183,6 +242,7 @@ main {
   flex-direction: column;
   gap: 8px;
 }
+
 .form-group label {
   color: #94a3b8;
   font-size: 0.8rem;
@@ -216,9 +276,11 @@ main {
   min-height: 110px;
   resize: vertical;
 }
+
 .full-width {
   grid-column: 1 / -1;
 }
+
 .form-actions {
   display: flex;
   justify-content: flex-end;
@@ -236,6 +298,7 @@ main {
 .form-actions button:hover {
   background: #1d4ed8;
 }
+
 .form-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
@@ -244,6 +307,7 @@ main {
 .table-wrapper {
   overflow-x: auto;
 }
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -269,9 +333,11 @@ td {
 tbody tr {
   transition: background 0.15s ease;
 }
+
 tbody tr:hover {
   background: #101e31;
 }
+
 td strong {
   display: block;
   margin-bottom: 5px;
@@ -300,14 +366,17 @@ td strong {
   background: rgba(239, 68, 68, 0.14);
   color: #f87171;
 }
+
 .badge.high {
   background: rgba(249, 115, 22, 0.14);
   color: #fb923c;
 }
+
 .badge.medium {
   background: rgba(234, 179, 8, 0.14);
   color: #facc15;
 }
+
 .badge.low {
   background: rgba(34, 197, 94, 0.14);
   color: #4ade80;
@@ -325,38 +394,6 @@ td strong {
 .incidents-panel > p:not(.error) {
   padding: 20px 28px;
   color: #94a3b8;
-}
-
-@media (max-width: 950px) {
-  .stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 650px) {
-  .topbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  main {
-    width: 94%;
-  }
-  .stats {
-    grid-template-columns: 1fr;
-  }
-  .panel-heading {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .panel-heading button {
-    width: 100%;
-  }
-  .incident-form {
-    grid-template-columns: 1fr;
-  }
-  .full-width {
-    grid-column: 1;
-  }
 }
 
 /* Incident Details */
@@ -474,20 +511,6 @@ td strong {
   opacity: 0.6;
 }
 
-@media (max-width: 650px) {
-  .details-form {
-    grid-template-columns: 1fr;
-  }
-
-  .details-header {
-    flex-direction: column;
-  }
-
-  .details-header button {
-    width: 100%;
-  }
-}
-
 /* Delete Incident Button */
 
 .details-actions .delete-button {
@@ -501,4 +524,68 @@ td strong {
   background: #dc2626;
   border-color: #dc2626;
   color: #ffffff;
+}
+
+@media (max-width: 950px) {
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 650px) {
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  main {
+    width: 94%;
+  }
+
+  .stats {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .panel-heading button {
+    width: 100%;
+  }
+
+  .incident-filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filter-group {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .clear-filters {
+    width: 100%;
+  }
+
+  .incident-form {
+    grid-template-columns: 1fr;
+  }
+
+  .full-width {
+    grid-column: 1;
+  }
+
+  .details-form {
+    grid-template-columns: 1fr;
+  }
+
+  .details-header {
+    flex-direction: column;
+  }
+
+  .details-header button {
+    width: 100%;
+  }
 }

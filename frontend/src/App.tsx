@@ -30,7 +30,12 @@ function App() {
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [selectedIncidentId, setSelectedIncidentId] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [severityFilter, setSeverityFilter] = useState("All");
+  const [selectedIncidentId, setSelectedIncidentId] = useState<number | null>(
+    null
+  );
+
   const [form, setForm] = useState<IncidentForm>({
     title: "",
     description: "",
@@ -42,7 +47,11 @@ function App() {
     try {
       setError("");
       const response = await fetch(API_URL);
-      if (!response.ok) throw new Error("Unable to load incidents.");
+
+      if (!response.ok) {
+        throw new Error("Unable to load incidents.");
+      }
+
       const data: Incident[] = await response.json();
       setIncidents(data);
     } catch (err) {
@@ -74,7 +83,9 @@ function App() {
         }),
       });
 
-      if (!response.ok) throw new Error("Unable to create incident.");
+      if (!response.ok) {
+        throw new Error("Unable to create incident.");
+      }
 
       setForm({
         title: "",
@@ -82,10 +93,13 @@ function App() {
         severity: "Medium",
         assignedTo: "",
       });
+
       setShowForm(false);
       await loadIncidents();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to create incident.");
+      setError(
+        err instanceof Error ? err.message : "Unable to create incident."
+      );
     } finally {
       setSaving(false);
     }
@@ -103,6 +117,18 @@ function App() {
 
   const platformStatus = criticalIncidents > 0 ? "Critical" : "Operational";
 
+  const filteredIncidents = incidents.filter((incident) => {
+    const matchesStatus =
+      statusFilter === "All" ||
+      incident.status.toLowerCase() === statusFilter.toLowerCase();
+
+    const matchesSeverity =
+      severityFilter === "All" ||
+      incident.severity.toLowerCase() === severityFilter.toLowerCase();
+
+    return matchesStatus && matchesSeverity;
+  });
+
   return (
     <div className="app">
       <header className="topbar">
@@ -113,6 +139,7 @@ function App() {
             Incident monitoring and service operations dashboard
           </p>
         </div>
+
         <div className="environment">
           <span className="status-dot"></span>
           Development
@@ -125,17 +152,24 @@ function App() {
             <span>Total Incidents</span>
             <strong>{incidents.length}</strong>
           </article>
+
           <article className="stat-card">
             <span>Open Incidents</span>
             <strong>{openIncidents}</strong>
           </article>
+
           <article className="stat-card">
             <span>Critical Incidents</span>
             <strong>{criticalIncidents}</strong>
           </article>
+
           <article className="stat-card">
             <span>Platform Status</span>
-            <strong className={platformStatus === "Critical" ? "critical-status" : "healthy"}>
+            <strong
+              className={
+                platformStatus === "Critical" ? "critical-status" : "healthy"
+              }
+            >
               {platformStatus}
             </strong>
           </article>
@@ -147,6 +181,7 @@ function App() {
               <p className="eyebrow">INCIDENT MANAGEMENT</p>
               <h2>Recent Incidents</h2>
             </div>
+
             <button
               type="button"
               onClick={() => {
@@ -158,6 +193,50 @@ function App() {
             </button>
           </div>
 
+          <div className="incident-filters">
+            <div className="filter-group">
+              <label htmlFor="statusFilter">Status</label>
+              <select
+                id="statusFilter"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+              >
+                <option value="All">All Statuses</option>
+                <option value="Open">Open</option>
+                <option value="Investigating">Investigating</option>
+                <option value="Resolved">Resolved</option>
+              </select>
+            </div>
+
+            <div className="filter-group">
+              <label htmlFor="severityFilter">Severity</label>
+              <select
+                id="severityFilter"
+                value={severityFilter}
+                onChange={(event) => setSeverityFilter(event.target.value)}
+              >
+                <option value="All">All Severities</option>
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+                <option value="Critical">Critical</option>
+              </select>
+            </div>
+
+            {(statusFilter !== "All" || severityFilter !== "All") && (
+              <button
+                type="button"
+                className="clear-filters"
+                onClick={() => {
+                  setStatusFilter("All");
+                  setSeverityFilter("All");
+                }}
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+
           {showForm && (
             <form className="incident-form" onSubmit={handleSubmit}>
               <div className="form-group">
@@ -167,7 +246,9 @@ function App() {
                   type="text"
                   required
                   value={form.title}
-                  onChange={(event) => setForm({ ...form, title: event.target.value })}
+                  onChange={(event) =>
+                    setForm({ ...form, title: event.target.value })
+                  }
                   placeholder="Example: Customer API latency"
                 />
               </div>
@@ -177,7 +258,9 @@ function App() {
                 <select
                   id="severity"
                   value={form.severity}
-                  onChange={(event) => setForm({ ...form, severity: event.target.value })}
+                  onChange={(event) =>
+                    setForm({ ...form, severity: event.target.value })
+                  }
                 >
                   <option value="Low">Low</option>
                   <option value="Medium">Medium</option>
@@ -193,7 +276,9 @@ function App() {
                   required
                   rows={4}
                   value={form.description}
-                  onChange={(event) => setForm({ ...form, description: event.target.value })}
+                  onChange={(event) =>
+                    setForm({ ...form, description: event.target.value })
+                  }
                   placeholder="Describe the service issue..."
                 />
               </div>
@@ -204,7 +289,9 @@ function App() {
                   id="assignedTo"
                   type="text"
                   value={form.assignedTo}
-                  onChange={(event) => setForm({ ...form, assignedTo: event.target.value })}
+                  onChange={(event) =>
+                    setForm({ ...form, assignedTo: event.target.value })
+                  }
                   placeholder="Example: Platform Engineering"
                 />
               </div>
@@ -243,31 +330,44 @@ function App() {
                     <th>Created</th>
                   </tr>
                 </thead>
+
                 <tbody>
-                  {incidents.map((incident) => (
-                    <tr
-                      key={incident.id}
-                      className="incident-row"
-                      onClick={() => {
-                        setSelectedIncidentId(incident.id);
-                        setShowForm(false);
-                      }}
-                    >
-                      <td>#{incident.id}</td>
-                      <td>
-                        <strong>{incident.title}</strong>
-                        <span className="description">{incident.description}</span>
-                      </td>
-                      <td>
-                        <span className={`badge ${incident.severity.toLowerCase()}`}>
-                          {incident.severity}
-                        </span>
-                      </td>
-                      <td>{incident.status}</td>
-                      <td>{incident.assignedTo ?? "Unassigned"}</td>
-                      <td>{new Date(incident.createdAt).toLocaleString()}</td>
+                  {filteredIncidents.length > 0 ? (
+                    filteredIncidents.map((incident) => (
+                      <tr
+                        key={incident.id}
+                        className="incident-row"
+                        onClick={() => {
+                          setSelectedIncidentId(incident.id);
+                          setShowForm(false);
+                        }}
+                      >
+                        <td>#{incident.id}</td>
+                        <td>
+                          <strong>{incident.title}</strong>
+                          <span className="description">
+                            {incident.description}
+                          </span>
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${incident.severity.toLowerCase()}`}
+                          >
+                            {incident.severity}
+                          </span>
+                        </td>
+                        <td>{incident.status}</td>
+                        <td>{incident.assignedTo ?? "Unassigned"}</td>
+                        <td>
+                          {new Date(incident.createdAt).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6}>No incidents match the selected filters.</td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -279,3 +379,4 @@ function App() {
 }
 
 export default App;
+
