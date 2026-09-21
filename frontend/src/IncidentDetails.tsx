@@ -26,6 +26,7 @@ function IncidentDetails({
   const [incident, setIncident] = useState<Incident | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -111,6 +112,43 @@ function IncidentDetails({
     }
   }
 
+  async function handleDelete() {
+    if (!incident) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete Incident #${incident.id} - ${incident.title}?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      setError("");
+
+      const response = await fetch(
+        `http://localhost:5286/api/incidents/${incident.id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Unable to delete incident.");
+      }
+
+      onUpdated();
+      onClose();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to delete incident."
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="incident-details">
@@ -142,7 +180,11 @@ function IncidentDetails({
           <h2>{incident.title}</h2>
         </div>
 
-        <button type="button" className="secondary-button" onClick={onClose}>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={onClose}
+        >
           Close
         </button>
       </div>
@@ -203,7 +245,9 @@ function IncidentDetails({
           <input
             id="details-assigned"
             value={incident.assignedTo}
-            onChange={(event) => updateField("assignedTo", event.target.value)}
+            onChange={(event) =>
+              updateField("assignedTo", event.target.value)
+            }
           />
         </div>
 
@@ -224,14 +268,27 @@ function IncidentDetails({
       <div className="details-actions">
         <button
           type="button"
+          className="delete-button"
+          onClick={handleDelete}
+          disabled={saving || deleting}
+        >
+          {deleting ? "Deleting..." : "Delete Incident"}
+        </button>
+
+        <button
+          type="button"
           className="secondary-button"
           onClick={onClose}
-          disabled={saving}
+          disabled={saving || deleting}
         >
           Cancel
         </button>
 
-        <button type="button" onClick={handleSave} disabled={saving}>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving || deleting}
+        >
           {saving ? "Saving..." : "Save Changes"}
         </button>
       </div>
