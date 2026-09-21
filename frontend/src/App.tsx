@@ -30,11 +30,10 @@ function App() {
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [severityFilter, setSeverityFilter] = useState("All");
-  const [selectedIncidentId, setSelectedIncidentId] = useState<number | null>(
-    null
-  );
+  const [selectedIncidentId, setSelectedIncidentId] = useState<number | null>(null);
 
   const [form, setForm] = useState<IncidentForm>({
     title: "",
@@ -97,9 +96,7 @@ function App() {
       setShowForm(false);
       await loadIncidents();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Unable to create incident."
-      );
+      setError(err instanceof Error ? err.message : "Unable to create incident.");
     } finally {
       setSaving(false);
     }
@@ -118,6 +115,17 @@ function App() {
   const platformStatus = criticalIncidents > 0 ? "Critical" : "Operational";
 
   const filteredIncidents = incidents.filter((incident) => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    const matchesSearch =
+      normalizedSearch === "" ||
+      incident.title.toLowerCase().includes(normalizedSearch) ||
+      incident.description.toLowerCase().includes(normalizedSearch) ||
+      (incident.assignedTo ?? "").toLowerCase().includes(normalizedSearch) ||
+      incident.status.toLowerCase().includes(normalizedSearch) ||
+      incident.severity.toLowerCase().includes(normalizedSearch) ||
+      String(incident.id).includes(normalizedSearch);
+
     const matchesStatus =
       statusFilter === "All" ||
       incident.status.toLowerCase() === statusFilter.toLowerCase();
@@ -126,8 +134,13 @@ function App() {
       severityFilter === "All" ||
       incident.severity.toLowerCase() === severityFilter.toLowerCase();
 
-    return matchesStatus && matchesSeverity;
+    return matchesSearch && matchesStatus && matchesSeverity;
   });
+
+  const hasActiveFilters =
+    searchTerm.trim() !== "" ||
+    statusFilter !== "All" ||
+    severityFilter !== "All";
 
   return (
     <div className="app">
@@ -194,6 +207,17 @@ function App() {
           </div>
 
           <div className="incident-filters">
+            <div className="filter-group search-group">
+              <label htmlFor="incidentSearch">Search</label>
+              <input
+                id="incidentSearch"
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search incidents..."
+              />
+            </div>
+
             <div className="filter-group">
               <label htmlFor="statusFilter">Status</label>
               <select
@@ -223,11 +247,12 @@ function App() {
               </select>
             </div>
 
-            {(statusFilter !== "All" || severityFilter !== "All") && (
+            {hasActiveFilters && (
               <button
                 type="button"
                 className="clear-filters"
                 onClick={() => {
+                  setSearchTerm("");
                   setStatusFilter("All");
                   setSeverityFilter("All");
                 }}
@@ -358,14 +383,12 @@ function App() {
                         </td>
                         <td>{incident.status}</td>
                         <td>{incident.assignedTo ?? "Unassigned"}</td>
-                        <td>
-                          {new Date(incident.createdAt).toLocaleString()}
-                        </td>
+                        <td>{new Date(incident.createdAt).toLocaleString()}</td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6}>No incidents match the selected filters.</td>
+                      <td colSpan={6}>No incidents match your search or filters.</td>
                     </tr>
                   )}
                 </tbody>
@@ -379,4 +402,3 @@ function App() {
 }
 
 export default App;
-

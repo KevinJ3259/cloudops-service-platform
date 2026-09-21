@@ -589,3 +589,26 @@ td strong {
     width: 100%;
   }
 }
+
+.filter-group input {
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  outline: none;
+  background: #07111f;
+  color: #e5e7eb;
+}
+
+.filter-group input::placeholder {
+  color: #64748b;
+}
+
+.filter-group input:focus {
+  border-color: #3b82f6;
+}
+
+.search-group {
+  flex: 1;
+  min-width: 260px;
+}
