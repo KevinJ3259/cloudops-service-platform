@@ -1,0 +1,46 @@
+@CloudOps_Api_HostAddress = http://localhost:5286
+
+### Get all incidents
+GET {{CloudOps_Api_HostAddress}}/api/incidents
+Accept: application/json
+
+###
+
+### Get incident #1
+GET {{CloudOps_Api_HostAddress}}/api/incidents/1
+Accept: application/json
+
+###
+
+### Create a new incident
+POST {{CloudOps_Api_HostAddress}}/api/incidents
+Content-Type: application/json
+
+{
+  "title": "Azure application health alert",
+  "description": "Application health monitoring detected elevated response times.",
+  "severity": "High",
+  "status": "Open",
+  "assignedTo": "Platform Engineering"
+}
+
+###
+
+### Update incident #1
+PUT {{CloudOps_Api_HostAddress}}/api/incidents/1
+Content-Type: application/json
+
+{
+  "title": "Production API unavailable",
+  "description": "The customer API experienced HTTP 503 errors.",
+  "severity": "Critical",
+  "status": "Resolved",
+  "assignedTo": "Cloud Operations",
+  "resolvedAt": "2026-09-21T13:00:00Z",
+  "resolutionNotes": "Application service was restarted and API health checks returned to normal."
+}
+
+###
+
+### Delete incident #2
+DELETE {{CloudOps_Api_HostAddress}}/api/incidents/2
