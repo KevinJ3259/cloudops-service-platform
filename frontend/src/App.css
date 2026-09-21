@@ -482,3 +482,18 @@ td strong {
     width: 100%;
   }
 }
+
+/* Delete Incident Button */
+
+.details-actions .delete-button {
+  margin-right: auto;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+}
+
+.details-actions .delete-button:hover:not(:disabled) {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+}
