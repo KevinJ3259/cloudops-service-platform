@@ -124,6 +124,11 @@ main {
   font-size: 1.35rem;
 }
 
+.stat-card .critical-status {
+  color: #f87171;
+  font-size: 1.35rem;
+}
+
 .incidents-panel {
   overflow: hidden;
   border: 1px solid #1e293b;

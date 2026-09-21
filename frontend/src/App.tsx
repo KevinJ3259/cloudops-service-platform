@@ -30,10 +30,7 @@ function App() {
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [selectedIncidentId, setSelectedIncidentId] = useState<number | null>(
-    null
-  );
-
+  const [selectedIncidentId, setSelectedIncidentId] = useState<number | null>(null);
   const [form, setForm] = useState<IncidentForm>({
     title: "",
     description: "",
@@ -44,40 +41,30 @@ function App() {
   const loadIncidents = useCallback(async () => {
     try {
       setError("");
-
       const response = await fetch(API_URL);
-
-      if (!response.ok) {
-        throw new Error("Unable to load incidents.");
-      }
-
+      if (!response.ok) throw new Error("Unable to load incidents.");
       const data: Incident[] = await response.json();
       setIncidents(data);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Something went wrong."
-      );
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadIncidents();
+    void loadIncidents();
   }, [loadIncidents]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
     setSaving(true);
     setError("");
 
     try {
       const response = await fetch(API_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: form.title,
           description: form.description,
@@ -87,9 +74,7 @@ function App() {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error("Unable to create incident.");
-      }
+      if (!response.ok) throw new Error("Unable to create incident.");
 
       setForm({
         title: "",
@@ -97,14 +82,10 @@ function App() {
         severity: "Medium",
         assignedTo: "",
       });
-
       setShowForm(false);
-
       await loadIncidents();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Unable to create incident."
-      );
+      setError(err instanceof Error ? err.message : "Unable to create incident.");
     } finally {
       setSaving(false);
     }
@@ -115,8 +96,12 @@ function App() {
   ).length;
 
   const criticalIncidents = incidents.filter(
-    (incident) => incident.severity.toLowerCase() === "critical"
+    (incident) =>
+      incident.severity.toLowerCase() === "critical" &&
+      incident.status.toLowerCase() !== "resolved"
   ).length;
+
+  const platformStatus = criticalIncidents > 0 ? "Critical" : "Operational";
 
   return (
     <div className="app">
@@ -128,7 +113,6 @@ function App() {
             Incident monitoring and service operations dashboard
           </p>
         </div>
-
         <div className="environment">
           <span className="status-dot"></span>
           Development
@@ -141,20 +125,19 @@ function App() {
             <span>Total Incidents</span>
             <strong>{incidents.length}</strong>
           </article>
-
           <article className="stat-card">
             <span>Open Incidents</span>
             <strong>{openIncidents}</strong>
           </article>
-
           <article className="stat-card">
             <span>Critical Incidents</span>
             <strong>{criticalIncidents}</strong>
           </article>
-
           <article className="stat-card">
             <span>Platform Status</span>
-            <strong className="healthy">Operational</strong>
+            <strong className={platformStatus === "Critical" ? "critical-status" : "healthy"}>
+              {platformStatus}
+            </strong>
           </article>
         </section>
 
@@ -164,7 +147,6 @@ function App() {
               <p className="eyebrow">INCIDENT MANAGEMENT</p>
               <h2>Recent Incidents</h2>
             </div>
-
             <button
               type="button"
               onClick={() => {
@@ -180,34 +162,22 @@ function App() {
             <form className="incident-form" onSubmit={handleSubmit}>
               <div className="form-group">
                 <label htmlFor="title">Incident Title</label>
-
                 <input
                   id="title"
                   type="text"
                   required
                   value={form.title}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      title: event.target.value,
-                    })
-                  }
+                  onChange={(event) => setForm({ ...form, title: event.target.value })}
                   placeholder="Example: Customer API latency"
                 />
               </div>
 
               <div className="form-group">
                 <label htmlFor="severity">Severity</label>
-
                 <select
                   id="severity"
                   value={form.severity}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      severity: event.target.value,
-                    })
-                  }
+                  onChange={(event) => setForm({ ...form, severity: event.target.value })}
                 >
                   <option value="Low">Low</option>
                   <option value="Medium">Medium</option>
@@ -218,35 +188,23 @@ function App() {
 
               <div className="form-group full-width">
                 <label htmlFor="description">Description</label>
-
                 <textarea
                   id="description"
                   required
                   rows={4}
                   value={form.description}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      description: event.target.value,
-                    })
-                  }
+                  onChange={(event) => setForm({ ...form, description: event.target.value })}
                   placeholder="Describe the service issue..."
                 />
               </div>
 
               <div className="form-group full-width">
                 <label htmlFor="assignedTo">Assigned Team</label>
-
                 <input
                   id="assignedTo"
                   type="text"
                   value={form.assignedTo}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      assignedTo: event.target.value,
-                    })
-                  }
+                  onChange={(event) => setForm({ ...form, assignedTo: event.target.value })}
                   placeholder="Example: Platform Engineering"
                 />
               </div>
@@ -270,7 +228,6 @@ function App() {
           )}
 
           {loading && <p>Loading incidents...</p>}
-
           {error && <p className="error">{error}</p>}
 
           {!loading && !error && (
@@ -286,7 +243,6 @@ function App() {
                     <th>Created</th>
                   </tr>
                 </thead>
-
                 <tbody>
                   {incidents.map((incident) => (
                     <tr
@@ -298,30 +254,18 @@ function App() {
                       }}
                     >
                       <td>#{incident.id}</td>
-
                       <td>
                         <strong>{incident.title}</strong>
-
-                        <span className="description">
-                          {incident.description}
-                        </span>
+                        <span className="description">{incident.description}</span>
                       </td>
-
                       <td>
-                        <span
-                          className={`badge ${incident.severity.toLowerCase()}`}
-                        >
+                        <span className={`badge ${incident.severity.toLowerCase()}`}>
                           {incident.severity}
                         </span>
                       </td>
-
                       <td>{incident.status}</td>
-
                       <td>{incident.assignedTo ?? "Unassigned"}</td>
-
-                      <td>
-                        {new Date(incident.createdAt).toLocaleString()}
-                      </td>
+                      <td>{new Date(incident.createdAt).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
