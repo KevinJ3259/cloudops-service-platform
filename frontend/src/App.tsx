@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import "./App.css";
+import IncidentDetails from "./IncidentDetails";
 
 interface Incident {
   id: number;
@@ -29,6 +30,9 @@ function App() {
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectedIncidentId, setSelectedIncidentId] = useState<number | null>(
+    null
+  );
 
   const [form, setForm] = useState<IncidentForm>({
     title: "",
@@ -64,6 +68,7 @@ function App() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
     setSaving(true);
     setError("");
 
@@ -94,6 +99,7 @@ function App() {
       });
 
       setShowForm(false);
+
       await loadIncidents();
     } catch (err) {
       setError(
@@ -161,7 +167,10 @@ function App() {
 
             <button
               type="button"
-              onClick={() => setShowForm((current) => !current)}
+              onClick={() => {
+                setShowForm((current) => !current);
+                setSelectedIncidentId(null);
+              }}
             >
               {showForm ? "Cancel" : "+ New Incident"}
             </button>
@@ -171,13 +180,17 @@ function App() {
             <form className="incident-form" onSubmit={handleSubmit}>
               <div className="form-group">
                 <label htmlFor="title">Incident Title</label>
+
                 <input
                   id="title"
                   type="text"
                   required
                   value={form.title}
                   onChange={(event) =>
-                    setForm({ ...form, title: event.target.value })
+                    setForm({
+                      ...form,
+                      title: event.target.value,
+                    })
                   }
                   placeholder="Example: Customer API latency"
                 />
@@ -185,11 +198,15 @@ function App() {
 
               <div className="form-group">
                 <label htmlFor="severity">Severity</label>
+
                 <select
                   id="severity"
                   value={form.severity}
                   onChange={(event) =>
-                    setForm({ ...form, severity: event.target.value })
+                    setForm({
+                      ...form,
+                      severity: event.target.value,
+                    })
                   }
                 >
                   <option value="Low">Low</option>
@@ -201,13 +218,17 @@ function App() {
 
               <div className="form-group full-width">
                 <label htmlFor="description">Description</label>
+
                 <textarea
                   id="description"
                   required
                   rows={4}
                   value={form.description}
                   onChange={(event) =>
-                    setForm({ ...form, description: event.target.value })
+                    setForm({
+                      ...form,
+                      description: event.target.value,
+                    })
                   }
                   placeholder="Describe the service issue..."
                 />
@@ -215,12 +236,16 @@ function App() {
 
               <div className="form-group full-width">
                 <label htmlFor="assignedTo">Assigned Team</label>
+
                 <input
                   id="assignedTo"
                   type="text"
                   value={form.assignedTo}
                   onChange={(event) =>
-                    setForm({ ...form, assignedTo: event.target.value })
+                    setForm({
+                      ...form,
+                      assignedTo: event.target.value,
+                    })
                   }
                   placeholder="Example: Platform Engineering"
                 />
@@ -234,7 +259,18 @@ function App() {
             </form>
           )}
 
+          {selectedIncidentId !== null && (
+            <IncidentDetails
+              incidentId={selectedIncidentId}
+              onClose={() => setSelectedIncidentId(null)}
+              onUpdated={async () => {
+                await loadIncidents();
+              }}
+            />
+          )}
+
           {loading && <p>Loading incidents...</p>}
+
           {error && <p className="error">{error}</p>}
 
           {!loading && !error && (
@@ -253,11 +289,19 @@ function App() {
 
                 <tbody>
                   {incidents.map((incident) => (
-                    <tr key={incident.id}>
+                    <tr
+                      key={incident.id}
+                      className="incident-row"
+                      onClick={() => {
+                        setSelectedIncidentId(incident.id);
+                        setShowForm(false);
+                      }}
+                    >
                       <td>#{incident.id}</td>
 
                       <td>
                         <strong>{incident.title}</strong>
+
                         <span className="description">
                           {incident.description}
                         </span>
@@ -272,6 +316,7 @@ function App() {
                       </td>
 
                       <td>{incident.status}</td>
+
                       <td>{incident.assignedTo ?? "Unassigned"}</td>
 
                       <td>
