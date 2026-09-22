@@ -283,6 +283,65 @@ public class IncidentsController : ControllerBase
         return NoContent();
     }
 
+    // POST: api/incidents/backfill-sla
+    // One-time maintenance endpoint for incidents created before SLA tracking existed.
+    [HttpPost("backfill-sla")]
+    public async Task<IActionResult> BackfillSla()
+    {
+        var incidents = await _context.Incidents
+            .Where(i => i.SlaDueAt == null)
+            .ToListAsync();
+
+        if (incidents.Count == 0)
+        {
+            return Ok(new
+            {
+                updatedCount = 0,
+                message = "No incidents require SLA backfill."
+            });
+        }
+
+        var activities = new List<IncidentActivity>();
+
+        foreach (var incident in incidents)
+        {
+            var previousPriority = incident.Priority;
+            var previousSlaDueAt = incident.SlaDueAt;
+
+            ApplyPriorityAndSla(incident);
+
+            activities.Add(new IncidentActivity
+            {
+                IncidentId = incident.Id,
+                ActivityType = "PriorityChanged",
+                Description = "Incident priority backfilled automatically.",
+                PreviousValue = previousPriority,
+                NewValue = incident.Priority,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            activities.Add(new IncidentActivity
+            {
+                IncidentId = incident.Id,
+                ActivityType = "SlaDueAtChanged",
+                Description = "Incident SLA deadline backfilled from original creation time.",
+                PreviousValue = FormatDateTime(previousSlaDueAt),
+                NewValue = FormatDateTime(incident.SlaDueAt),
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        _context.IncidentActivities.AddRange(activities);
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            updatedCount = incidents.Count,
+            incidentIds = incidents.Select(i => i.Id).ToArray(),
+            message = "SLA backfill completed successfully."
+        });
+    }
+
     // DELETE: api/incidents/1
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteIncident(int id)
