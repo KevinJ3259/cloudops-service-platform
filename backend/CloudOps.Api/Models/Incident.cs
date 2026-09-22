@@ -20,9 +20,13 @@ public class Incident
 
     public string? ResolutionNotes { get; set; }
 
+    public string Priority { get; set; } = "P3 - Medium";
+
+    public DateTime? SlaDueAt { get; set; }
+
     public ICollection<IncidentActivity> Activities { get; set; }
-    = new List<IncidentActivity>();
+        = new List<IncidentActivity>();
 
     public ICollection<IncidentWorkNote> WorkNotes { get; set; }
-    = new List<IncidentWorkNote>();
+        = new List<IncidentWorkNote>();
 }
