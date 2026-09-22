@@ -13,9 +13,18 @@ interface Incident {
   createdAt: string;
   resolvedAt: string | null;
   resolutionNotes: string | null;
+  priority: string;
+  slaDueAt: string | null;
 }
 
-type SortOption = "newest" | "oldest" | "severity-high" | "severity-low" | "status";
+type SortOption =
+  | "newest"
+  | "oldest"
+  | "severity-high"
+  | "severity-low"
+  | "status";
+
+type SlaStatus = "On Track" | "At Risk" | "Breached" | "Met" | "Not Set";
 
 interface IncidentForm {
   title: string;
@@ -25,6 +34,96 @@ interface IncidentForm {
 }
 
 const API_URL = "http://localhost:5286/api/incidents";
+
+function getSlaStatus(incident: Incident): SlaStatus {
+  if (!incident.slaDueAt) {
+    return "Not Set";
+  }
+
+  const dueTime = new Date(incident.slaDueAt).getTime();
+
+  if (incident.status.toLowerCase() === "resolved") {
+    if (!incident.resolvedAt) {
+      return "Met";
+    }
+
+    const resolvedTime = new Date(incident.resolvedAt).getTime();
+
+    return resolvedTime <= dueTime ? "Met" : "Breached";
+  }
+
+  const now = Date.now();
+  const remainingMilliseconds = dueTime - now;
+
+  if (remainingMilliseconds <= 0) {
+    return "Breached";
+  }
+
+  const totalSlaMilliseconds =
+    dueTime - new Date(incident.createdAt).getTime();
+
+  const percentRemaining =
+    totalSlaMilliseconds > 0
+      ? remainingMilliseconds / totalSlaMilliseconds
+      : 0;
+
+  if (percentRemaining <= 0.25) {
+    return "At Risk";
+  }
+
+  return "On Track";
+}
+
+function getSlaTimeText(incident: Incident): string {
+  if (!incident.slaDueAt) {
+    return "No SLA deadline";
+  }
+
+  const dueTime = new Date(incident.slaDueAt).getTime();
+
+  if (incident.status.toLowerCase() === "resolved") {
+    return `Due ${new Date(incident.slaDueAt).toLocaleString()}`;
+  }
+
+  const difference = dueTime - Date.now();
+
+  if (difference <= 0) {
+    const overdueMinutes = Math.floor(Math.abs(difference) / 60000);
+    const overdueHours = Math.floor(overdueMinutes / 60);
+    const remainingMinutes = overdueMinutes % 60;
+
+    if (overdueHours > 0) {
+      return `${overdueHours}h ${remainingMinutes}m overdue`;
+    }
+
+    return `${remainingMinutes}m overdue`;
+  }
+
+  const totalMinutes = Math.floor(difference / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m remaining`;
+  }
+
+  return `${minutes}m remaining`;
+}
+
+function getSlaClassName(status: SlaStatus): string {
+  switch (status) {
+    case "Met":
+      return "sla-met";
+    case "At Risk":
+      return "sla-at-risk";
+    case "Breached":
+      return "sla-breached";
+    case "On Track":
+      return "sla-on-track";
+    default:
+      return "sla-not-set";
+  }
+}
 
 function App() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -36,7 +135,8 @@ function App() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [severityFilter, setSeverityFilter] = useState("All");
   const [sortOption, setSortOption] = useState<SortOption>("newest");
-  const [selectedIncidentId, setSelectedIncidentId] = useState<number | null>(null);
+  const [selectedIncidentId, setSelectedIncidentId] =
+    useState<number | null>(null);
 
   const [form, setForm] = useState<IncidentForm>({
     title: "",
@@ -48,6 +148,7 @@ function App() {
   const loadIncidents = useCallback(async () => {
     try {
       setError("");
+
       const response = await fetch(API_URL);
 
       if (!response.ok) {
@@ -57,7 +158,9 @@ function App() {
       const data: Incident[] = await response.json();
       setIncidents(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(
+        err instanceof Error ? err.message : "Something went wrong."
+      );
     } finally {
       setLoading(false);
     }
@@ -75,7 +178,9 @@ function App() {
     try {
       const response = await fetch(API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           title: form.title,
           description: form.description,
@@ -99,7 +204,9 @@ function App() {
       setShowForm(false);
       await loadIncidents();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to create incident.");
+      setError(
+        err instanceof Error ? err.message : "Unable to create incident."
+      );
     } finally {
       setSaving(false);
     }
@@ -115,18 +222,30 @@ function App() {
       incident.status.toLowerCase() !== "resolved"
   ).length;
 
-  const platformStatus = criticalIncidents > 0 ? "Critical" : "Operational";
+  const slaBreaches = incidents.filter(
+    (incident) => getSlaStatus(incident) === "Breached"
+  ).length;
+
+  const platformStatus =
+    criticalIncidents > 0 ? "Critical" : "Operational";
 
   const filteredIncidents = incidents.filter((incident) => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
+    const slaStatus = getSlaStatus(incident).toLowerCase();
 
     const matchesSearch =
       normalizedSearch === "" ||
       incident.title.toLowerCase().includes(normalizedSearch) ||
       incident.description.toLowerCase().includes(normalizedSearch) ||
-      (incident.assignedTo ?? "").toLowerCase().includes(normalizedSearch) ||
+      (incident.assignedTo ?? "")
+        .toLowerCase()
+        .includes(normalizedSearch) ||
       incident.status.toLowerCase().includes(normalizedSearch) ||
       incident.severity.toLowerCase().includes(normalizedSearch) ||
+      (incident.priority ?? "")
+        .toLowerCase()
+        .includes(normalizedSearch) ||
+      slaStatus.includes(normalizedSearch) ||
       String(incident.id).includes(normalizedSearch);
 
     const matchesStatus =
@@ -150,18 +269,32 @@ function App() {
   const sortedIncidents = [...filteredIncidents].sort((a, b) => {
     switch (sortOption) {
       case "oldest":
-        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        return (
+          new Date(a.createdAt).getTime() -
+          new Date(b.createdAt).getTime()
+        );
+
       case "severity-high":
-        return (severityRank[b.severity.toLowerCase()] ?? 0) -
-          (severityRank[a.severity.toLowerCase()] ?? 0);
+        return (
+          (severityRank[b.severity.toLowerCase()] ?? 0) -
+          (severityRank[a.severity.toLowerCase()] ?? 0)
+        );
+
       case "severity-low":
-        return (severityRank[a.severity.toLowerCase()] ?? 0) -
-          (severityRank[b.severity.toLowerCase()] ?? 0);
+        return (
+          (severityRank[a.severity.toLowerCase()] ?? 0) -
+          (severityRank[b.severity.toLowerCase()] ?? 0)
+        );
+
       case "status":
         return a.status.localeCompare(b.status);
+
       case "newest":
       default:
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        return (
+          new Date(b.createdAt).getTime() -
+          new Date(a.createdAt).getTime()
+        );
     }
   });
 
@@ -175,7 +308,9 @@ function App() {
       <header className="topbar">
         <div>
           <p className="eyebrow">CLOUD OPERATIONS</p>
+
           <h1>CloudOps Service Platform</h1>
+
           <p className="subtitle">
             Incident monitoring and service operations dashboard
           </p>
@@ -205,10 +340,24 @@ function App() {
           </article>
 
           <article className="stat-card">
-            <span>Platform Status</span>
+            <span>SLA Breaches</span>
             <strong
               className={
-                platformStatus === "Critical" ? "critical-status" : "healthy"
+                slaBreaches > 0 ? "critical-status" : "healthy"
+              }
+            >
+              {slaBreaches}
+            </strong>
+          </article>
+
+          <article className="stat-card">
+            <span>Platform Status</span>
+
+            <strong
+              className={
+                platformStatus === "Critical"
+                  ? "critical-status"
+                  : "healthy"
               }
             >
               {platformStatus}
@@ -237,35 +386,46 @@ function App() {
           <div className="incident-filters">
             <div className="filter-group search-group">
               <label htmlFor="incidentSearch">Search</label>
+
               <input
                 id="incidentSearch"
                 type="search"
                 value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
+                onChange={(event) =>
+                  setSearchTerm(event.target.value)
+                }
                 placeholder="Search incidents..."
               />
             </div>
 
             <div className="filter-group">
               <label htmlFor="statusFilter">Status</label>
+
               <select
                 id="statusFilter"
                 value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value)
+                }
               >
                 <option value="All">All Statuses</option>
                 <option value="Open">Open</option>
-                <option value="Investigating">Investigating</option>
+                <option value="Investigating">
+                  Investigating
+                </option>
                 <option value="Resolved">Resolved</option>
               </select>
             </div>
 
             <div className="filter-group">
               <label htmlFor="severityFilter">Severity</label>
+
               <select
                 id="severityFilter"
                 value={severityFilter}
-                onChange={(event) => setSeverityFilter(event.target.value)}
+                onChange={(event) =>
+                  setSeverityFilter(event.target.value)
+                }
               >
                 <option value="All">All Severities</option>
                 <option value="Low">Low</option>
@@ -277,17 +437,24 @@ function App() {
 
             <div className="filter-group">
               <label htmlFor="sortOption">Sort By</label>
+
               <select
                 id="sortOption"
                 value={sortOption}
                 onChange={(event) =>
-                  setSortOption(event.target.value as SortOption)
+                  setSortOption(
+                    event.target.value as SortOption
+                  )
                 }
               >
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
-                <option value="severity-high">Severity: High to Low</option>
-                <option value="severity-low">Severity: Low to High</option>
+                <option value="severity-high">
+                  Severity: High to Low
+                </option>
+                <option value="severity-low">
+                  Severity: Low to High
+                </option>
                 <option value="status">Status A-Z</option>
               </select>
             </div>
@@ -308,16 +475,23 @@ function App() {
           </div>
 
           {showForm && (
-            <form className="incident-form" onSubmit={handleSubmit}>
+            <form
+              className="incident-form"
+              onSubmit={handleSubmit}
+            >
               <div className="form-group">
                 <label htmlFor="title">Incident Title</label>
+
                 <input
                   id="title"
                   type="text"
                   required
                   value={form.title}
                   onChange={(event) =>
-                    setForm({ ...form, title: event.target.value })
+                    setForm({
+                      ...form,
+                      title: event.target.value,
+                    })
                   }
                   placeholder="Example: Customer API latency"
                 />
@@ -325,11 +499,15 @@ function App() {
 
               <div className="form-group">
                 <label htmlFor="severity">Severity</label>
+
                 <select
                   id="severity"
                   value={form.severity}
                   onChange={(event) =>
-                    setForm({ ...form, severity: event.target.value })
+                    setForm({
+                      ...form,
+                      severity: event.target.value,
+                    })
                   }
                 >
                   <option value="Low">Low</option>
@@ -340,27 +518,39 @@ function App() {
               </div>
 
               <div className="form-group full-width">
-                <label htmlFor="description">Description</label>
+                <label htmlFor="description">
+                  Description
+                </label>
+
                 <textarea
                   id="description"
                   required
                   rows={4}
                   value={form.description}
                   onChange={(event) =>
-                    setForm({ ...form, description: event.target.value })
+                    setForm({
+                      ...form,
+                      description: event.target.value,
+                    })
                   }
                   placeholder="Describe the service issue..."
                 />
               </div>
 
               <div className="form-group full-width">
-                <label htmlFor="assignedTo">Assigned Team</label>
+                <label htmlFor="assignedTo">
+                  Assigned Team
+                </label>
+
                 <input
                   id="assignedTo"
                   type="text"
                   value={form.assignedTo}
                   onChange={(event) =>
-                    setForm({ ...form, assignedTo: event.target.value })
+                    setForm({
+                      ...form,
+                      assignedTo: event.target.value,
+                    })
                   }
                   placeholder="Example: Platform Engineering"
                 />
@@ -368,7 +558,9 @@ function App() {
 
               <div className="form-actions full-width">
                 <button type="submit" disabled={saving}>
-                  {saving ? "Creating..." : "Create Incident"}
+                  {saving
+                    ? "Creating..."
+                    : "Create Incident"}
                 </button>
               </div>
             </form>
@@ -377,7 +569,9 @@ function App() {
           {selectedIncidentId !== null && (
             <IncidentDetails
               incidentId={selectedIncidentId}
-              onClose={() => setSelectedIncidentId(null)}
+              onClose={() =>
+                setSelectedIncidentId(null)
+              }
               onUpdated={async () => {
                 await loadIncidents();
               }}
@@ -385,6 +579,7 @@ function App() {
           )}
 
           {loading && <p>Loading incidents...</p>}
+
           {error && <p className="error">{error}</p>}
 
           {!loading && !error && (
@@ -395,7 +590,9 @@ function App() {
                     <th>ID</th>
                     <th>Incident</th>
                     <th>Severity</th>
+                    <th>Priority</th>
                     <th>Status</th>
+                    <th>SLA</th>
                     <th>Assigned To</th>
                     <th>Created</th>
                   </tr>
@@ -403,37 +600,96 @@ function App() {
 
                 <tbody>
                   {sortedIncidents.length > 0 ? (
-                    sortedIncidents.map((incident) => (
-                      <tr
-                        key={incident.id}
-                        className="incident-row"
-                        onClick={() => {
-                          setSelectedIncidentId(incident.id);
-                          setShowForm(false);
-                        }}
-                      >
-                        <td>#{incident.id}</td>
-                        <td>
-                          <strong>{incident.title}</strong>
-                          <span className="description">
-                            {incident.description}
-                          </span>
-                        </td>
-                        <td>
-                          <span
-                            className={`badge ${incident.severity.toLowerCase()}`}
-                          >
-                            {incident.severity}
-                          </span>
-                        </td>
-                        <td>{incident.status}</td>
-                        <td>{incident.assignedTo ?? "Unassigned"}</td>
-                        <td>{new Date(incident.createdAt).toLocaleString()}</td>
-                      </tr>
-                    ))
+                    sortedIncidents.map((incident) => {
+                      const slaStatus =
+                        getSlaStatus(incident);
+
+                      return (
+                        <tr
+                          key={incident.id}
+                          className="incident-row"
+                          onClick={() => {
+                            setSelectedIncidentId(
+                              incident.id
+                            );
+                            setShowForm(false);
+                          }}
+                        >
+                          <td>#{incident.id}</td>
+
+                          <td>
+                            <strong>
+                              {incident.title}
+                            </strong>
+
+                            <span className="description">
+                              {incident.description}
+                            </span>
+                          </td>
+
+                          <td>
+                            <span
+                              className={`badge ${incident.severity.toLowerCase()}`}
+                            >
+                              {incident.severity}
+                            </span>
+                          </td>
+
+                          <td>
+                            <span className="priority-badge">
+                              {incident.priority ||
+                                "Not Set"}
+                            </span>
+                          </td>
+
+                          <td>{incident.status}</td>
+
+                          <td>
+                            <div className="sla-cell">
+                              <span
+                                className={`sla-badge ${getSlaClassName(
+                                  slaStatus
+                                )}`}
+                              >
+                                {slaStatus}
+                              </span>
+
+                              <span className="sla-time">
+                                {getSlaTimeText(
+                                  incident
+                                )}
+                              </span>
+
+                              {incident.slaDueAt && (
+                                <span className="sla-due">
+                                  Due{" "}
+                                  {new Date(
+                                    incident.slaDueAt
+                                  ).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td>
+                            {incident.assignedTo ??
+                              "Unassigned"}
+                          </td>
+
+                          <td>
+                            {new Date(
+                              incident.createdAt
+                            ).toLocaleString()}
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
-                      <td colSpan={6}>No incidents match your search or filters.</td>
+                      <td colSpan={8}>
+                        No incidents match your search or
+                        filters.
+                      </td>
                     </tr>
                   )}
                 </tbody>
