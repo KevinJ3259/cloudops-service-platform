@@ -3,6 +3,7 @@ using System;
 using CloudOps.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CloudOps.Api.Migrations
 {
     [DbContext(typeof(CloudOpsDbContext))]
-    partial class CloudOpsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260922143801_AddIncidentWorkNotes")]
+    partial class AddIncidentWorkNotes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

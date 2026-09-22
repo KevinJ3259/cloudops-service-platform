@@ -22,4 +22,7 @@ public class Incident
 
     public ICollection<IncidentActivity> Activities { get; set; }
     = new List<IncidentActivity>();
+
+    public ICollection<IncidentWorkNote> WorkNotes { get; set; }
+    = new List<IncidentWorkNote>();
 }
