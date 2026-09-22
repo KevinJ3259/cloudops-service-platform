@@ -139,19 +139,22 @@ public class IncidentsController : ControllerBase
         incident.Id = 0;
         incident.CreatedAt = DateTime.UtcNow;
 
+        ApplyPriorityAndSla(incident);
+
         _context.Incidents.Add(incident);
         await _context.SaveChangesAsync();
 
-        var activity = new IncidentActivity
+        _context.IncidentActivities.Add(new IncidentActivity
         {
             IncidentId = incident.Id,
             ActivityType = "IncidentCreated",
-            Description = $"Incident created with status {incident.Status}.",
+            Description =
+                $"Incident created with status {incident.Status}, " +
+                $"priority {incident.Priority}.",
             NewValue = incident.Status,
             CreatedAt = DateTime.UtcNow
-        };
+        });
 
-        _context.IncidentActivities.Add(activity);
         await _context.SaveChangesAsync();
 
         return CreatedAtAction(
@@ -230,6 +233,15 @@ public class IncidentsController : ControllerBase
             updatedIncident.ResolutionNotes
         );
 
+        var severityChanged = !string.Equals(
+            incident.Severity,
+            updatedIncident.Severity,
+            StringComparison.OrdinalIgnoreCase
+        );
+
+        var previousPriority = incident.Priority;
+        var previousSlaDueAt = incident.SlaDueAt;
+
         incident.Title = updatedIncident.Title;
         incident.Description = updatedIncident.Description;
         incident.Severity = updatedIncident.Severity;
@@ -237,6 +249,29 @@ public class IncidentsController : ControllerBase
         incident.AssignedTo = updatedIncident.AssignedTo;
         incident.ResolvedAt = updatedIncident.ResolvedAt;
         incident.ResolutionNotes = updatedIncident.ResolutionNotes;
+
+        if (severityChanged)
+        {
+            ApplyPriorityAndSla(incident);
+
+            AddActivityIfChanged(
+                activities,
+                id,
+                "PriorityChanged",
+                "Incident priority changed automatically.",
+                previousPriority,
+                incident.Priority
+            );
+
+            AddActivityIfChanged(
+                activities,
+                id,
+                "SlaDueAtChanged",
+                "Incident SLA deadline recalculated.",
+                FormatDateTime(previousSlaDueAt),
+                FormatDateTime(incident.SlaDueAt)
+            );
+        }
 
         if (activities.Count > 0)
         {
@@ -263,6 +298,41 @@ public class IncidentsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    private static void ApplyPriorityAndSla(Incident incident)
+    {
+        var severity = incident.Severity?.Trim().ToLowerInvariant();
+
+        switch (severity)
+        {
+            case "critical":
+                incident.Priority = "P1 - Critical";
+                incident.SlaDueAt = incident.CreatedAt.AddHours(4);
+                break;
+
+            case "high":
+                incident.Priority = "P2 - High";
+                incident.SlaDueAt = incident.CreatedAt.AddHours(8);
+                break;
+
+            case "low":
+                incident.Priority = "P4 - Low";
+                incident.SlaDueAt = incident.CreatedAt.AddHours(72);
+                break;
+
+            case "medium":
+            default:
+                incident.Priority = "P3 - Medium";
+                incident.SlaDueAt = incident.CreatedAt.AddHours(24);
+                break;
+        }
+    }
+
+    private static string? FormatDateTime(DateTime? value)
+    {
+        return value?.ToUniversalTime()
+            .ToString("yyyy-MM-dd HH:mm:ss 'UTC'");
     }
 
     private static void AddActivityIfChanged(
