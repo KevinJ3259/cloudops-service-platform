@@ -22,6 +22,14 @@ type IncidentActivity = {
   createdAt: string;
 };
 
+type IncidentWorkNote = {
+  id: number;
+  incidentId: number;
+  author: string;
+  note: string;
+  createdAt: string;
+};
+
 type IncidentDetailsProps = {
   incidentId: number;
   onClose: () => void;
@@ -35,8 +43,13 @@ function IncidentDetails({
 }: IncidentDetailsProps) {
   const [incident, setIncident] = useState<Incident | null>(null);
   const [activities, setActivities] = useState<IncidentActivity[]>([]);
+  const [workNotes, setWorkNotes] = useState<IncidentWorkNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(true);
+  const [workNotesLoading, setWorkNotesLoading] = useState(true);
+  const [workNoteAuthor, setWorkNoteAuthor] = useState("Kevin Jordan");
+  const [workNoteText, setWorkNoteText] = useState("");
+  const [addingWorkNote, setAddingWorkNote] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
@@ -87,8 +100,25 @@ function IncidentDetails({
       }
     }
 
+    async function loadWorkNotes() {
+      try {
+        setWorkNotesLoading(true);
+        const response = await fetch(
+          `http://localhost:5286/api/incidents/${incidentId}/worknotes`
+        );
+        if (!response.ok) throw new Error("Unable to load work notes.");
+        const data: IncidentWorkNote[] = await response.json();
+        setWorkNotes(data);
+      } catch (err) {
+        console.error("Unable to load work notes:", err);
+      } finally {
+        setWorkNotesLoading(false);
+      }
+    }
+
     loadIncident();
     loadActivities();
+    loadWorkNotes();
   }, [incidentId]);
 
   function updateField(field: keyof Incident, value: string) {
@@ -98,6 +128,60 @@ function IncidentDetails({
       ...incident,
       [field]: value,
     });
+  }
+
+  async function refreshActivities() {
+    try {
+      const response = await fetch(
+        `http://localhost:5286/api/incidents/${incidentId}/activities`
+      );
+      if (!response.ok) throw new Error("Unable to refresh incident activity.");
+      const data: IncidentActivity[] = await response.json();
+      setActivities(data);
+    } catch (err) {
+      console.error("Unable to refresh incident activity:", err);
+    }
+  }
+
+  async function handleAddWorkNote() {
+    if (!incident) return;
+
+    const author = workNoteAuthor.trim();
+    const note = workNoteText.trim();
+
+    if (!author || !note) {
+      setError("Author and work note are required.");
+      return;
+    }
+
+    try {
+      setAddingWorkNote(true);
+      setError("");
+
+      const response = await fetch(
+        `http://localhost:5286/api/incidents/${incident.id}/worknotes`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ author, note }),
+        }
+      );
+
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Unable to add work note.");
+      }
+
+      const createdNote: IncidentWorkNote = await response.json();
+      setWorkNotes((current) => [createdNote, ...current]);
+      setWorkNoteText("");
+      await refreshActivities();
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to add work note.");
+    } finally {
+      setAddingWorkNote(false);
+    }
   }
 
   async function handleSave() {
@@ -199,6 +283,8 @@ function IncidentDetails({
         return "Assigned Team Changed";
       case "ResolutionNotesChanged":
         return "Resolution Notes Updated";
+      case "WorkNoteAdded":
+        return "Work Note Added";
       default:
         return activityType;
     }
@@ -329,6 +415,72 @@ function IncidentDetails({
           />
         </div>
       </div>
+
+      <section className="work-notes-section">
+        <div className="work-notes-header">
+          <div>
+            <p className="eyebrow">INCIDENT COLLABORATION</p>
+            <h3>Work Notes</h3>
+          </div>
+          <span className="activity-count">
+            {workNotes.length} {workNotes.length === 1 ? "note" : "notes"}
+          </span>
+        </div>
+
+        <div className="work-note-form">
+          <div className="form-group">
+            <label htmlFor="work-note-author">Author</label>
+            <input
+              id="work-note-author"
+              value={workNoteAuthor}
+              onChange={(event) => setWorkNoteAuthor(event.target.value)}
+              disabled={addingWorkNote}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="work-note-text">Add Work Note</label>
+            <textarea
+              id="work-note-text"
+              rows={3}
+              placeholder="Describe troubleshooting performed, findings, or next steps..."
+              value={workNoteText}
+              onChange={(event) => setWorkNoteText(event.target.value)}
+              disabled={addingWorkNote}
+            />
+          </div>
+
+          <div className="work-note-form-actions">
+            <button
+              type="button"
+              onClick={handleAddWorkNote}
+              disabled={addingWorkNote || !workNoteAuthor.trim() || !workNoteText.trim()}
+            >
+              {addingWorkNote ? "Adding..." : "Add Work Note"}
+            </button>
+          </div>
+        </div>
+
+        {workNotesLoading ? (
+          <p className="activity-empty">Loading work notes...</p>
+        ) : workNotes.length === 0 ? (
+          <p className="activity-empty">
+            No work notes have been added to this incident yet.
+          </p>
+        ) : (
+          <div className="work-notes-list">
+            {workNotes.map((workNote) => (
+              <article className="work-note-card" key={workNote.id}>
+                <div className="work-note-meta">
+                  <strong>{workNote.author}</strong>
+                  <time>{formatActivityDate(workNote.createdAt)}</time>
+                </div>
+                <p>{workNote.note}</p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="activity-section">
         <div className="activity-header">

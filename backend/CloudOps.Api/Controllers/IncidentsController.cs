@@ -62,6 +62,76 @@ public class IncidentsController : ControllerBase
         return Ok(activities);
     }
 
+    // GET: api/incidents/1/worknotes
+    [HttpGet("{id:int}/worknotes")]
+    public async Task<ActionResult<IEnumerable<IncidentWorkNote>>>
+        GetIncidentWorkNotes(int id)
+    {
+        var incidentExists = await _context.Incidents
+            .AnyAsync(i => i.Id == id);
+
+        if (!incidentExists)
+        {
+            return NotFound();
+        }
+
+        var workNotes = await _context.IncidentWorkNotes
+            .Where(note => note.IncidentId == id)
+            .OrderByDescending(note => note.CreatedAt)
+            .ToListAsync();
+
+        return Ok(workNotes);
+    }
+
+    // POST: api/incidents/1/worknotes
+    [HttpPost("{id:int}/worknotes")]
+    public async Task<ActionResult<IncidentWorkNote>>
+        CreateIncidentWorkNote(int id, IncidentWorkNote workNote)
+    {
+        var incident = await _context.Incidents.FindAsync(id);
+
+        if (incident is null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(workNote.Author))
+        {
+            return BadRequest("Author is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(workNote.Note))
+        {
+            return BadRequest("Work note is required.");
+        }
+
+        workNote.Id = 0;
+        workNote.IncidentId = id;
+        workNote.Author = workNote.Author.Trim();
+        workNote.Note = workNote.Note.Trim();
+        workNote.CreatedAt = DateTime.UtcNow;
+        workNote.Incident = null;
+
+        _context.IncidentWorkNotes.Add(workNote);
+
+        _context.IncidentActivities.Add(new IncidentActivity
+        {
+            IncidentId = id,
+            ActivityType = "WorkNoteAdded",
+            Description = $"Work note added by {workNote.Author}.",
+            NewValue = workNote.Note,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        return CreatedAtAction(
+            nameof(GetIncidentWorkNotes),
+            new { id },
+            workNote
+        );
+    }
+
     // POST: api/incidents
     [HttpPost]
     public async Task<ActionResult<Incident>> CreateIncident(Incident incident)

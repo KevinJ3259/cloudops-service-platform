@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace CloudOps.Api.Models;
 
 public class IncidentActivity
@@ -16,5 +18,6 @@ public class IncidentActivity
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    [JsonIgnore]
     public Incident? Incident { get; set; }
 }
