@@ -10,6 +10,8 @@ type Incident = {
   createdAt: string;
   resolvedAt: string | null;
   resolutionNotes: string | null;
+  priority: string;
+  slaDueAt: string | null;
 };
 
 type IncidentActivity = {
@@ -35,6 +37,49 @@ type IncidentDetailsProps = {
   onClose: () => void;
   onUpdated: () => void;
 };
+
+type SlaStatus = "On Track" | "At Risk" | "Breached" | "Met" | "Not Set";
+
+function getSlaStatus(incident: Incident): SlaStatus {
+  if (!incident.slaDueAt) return "Not Set";
+  const dueTime = new Date(incident.slaDueAt).getTime();
+  if (incident.status.toLowerCase() === "resolved") {
+    if (!incident.resolvedAt) return "Met";
+    return new Date(incident.resolvedAt).getTime() <= dueTime ? "Met" : "Breached";
+  }
+  const remaining = dueTime - Date.now();
+  if (remaining <= 0) return "Breached";
+  const totalSla = dueTime - new Date(incident.createdAt).getTime();
+  const percentRemaining = totalSla > 0 ? remaining / totalSla : 0;
+  return percentRemaining <= 0.25 ? "At Risk" : "On Track";
+}
+
+function getSlaTimeText(incident: Incident): string {
+  if (!incident.slaDueAt) return "No SLA deadline";
+  const dueTime = new Date(incident.slaDueAt).getTime();
+  const targetTime = incident.status.toLowerCase() === "resolved" && incident.resolvedAt
+    ? new Date(incident.resolvedAt).getTime()
+    : Date.now();
+  const difference = dueTime - targetTime;
+  const totalMinutes = Math.floor(Math.abs(difference) / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const value = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  if (incident.status.toLowerCase() === "resolved") {
+    return difference >= 0 ? `${value} before deadline` : `${value} after deadline`;
+  }
+  return difference >= 0 ? `${value} remaining` : `${value} overdue`;
+}
+
+function getSlaClassName(status: SlaStatus): string {
+  switch (status) {
+    case "Met": return "sla-met";
+    case "At Risk": return "sla-at-risk";
+    case "Breached": return "sla-breached";
+    case "On Track": return "sla-on-track";
+    default: return "sla-not-set";
+  }
+}
 
 function IncidentDetails({
   incidentId,
@@ -285,6 +330,10 @@ function IncidentDetails({
         return "Resolution Notes Updated";
       case "WorkNoteAdded":
         return "Work Note Added";
+      case "PriorityChanged":
+        return "Priority Changed";
+      case "SlaDueAtChanged":
+        return "SLA Deadline Changed";
       default:
         return activityType;
     }
@@ -316,6 +365,8 @@ function IncidentDetails({
   if (!incident) {
     return null;
   }
+
+  const slaStatus = getSlaStatus(incident);
 
   return (
     <div className="incident-details">
@@ -415,6 +466,22 @@ function IncidentDetails({
           />
         </div>
       </div>
+
+      <section className="sla-details-section">
+        <div className="sla-details-header">
+          <div>
+            <p className="eyebrow">SERVICE LEVEL AGREEMENT</p>
+            <h3>SLA Tracking</h3>
+          </div>
+          <span className={`sla-badge ${getSlaClassName(slaStatus)}`}>{slaStatus}</span>
+        </div>
+        <div className="sla-details-grid">
+          <div className="sla-detail-card"><span>Priority</span><strong>{incident.priority || "Not Set"}</strong></div>
+          <div className="sla-detail-card"><span>SLA Status</span><strong>{slaStatus}</strong></div>
+          <div className="sla-detail-card"><span>Time</span><strong>{getSlaTimeText(incident)}</strong></div>
+          <div className="sla-detail-card"><span>SLA Deadline</span><strong>{incident.slaDueAt ? new Date(incident.slaDueAt).toLocaleString() : "Not Set"}</strong></div>
+        </div>
+      </section>
 
       <section className="work-notes-section">
         <div className="work-notes-header">
