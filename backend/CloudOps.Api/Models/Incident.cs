@@ -19,4 +19,7 @@ public class Incident
     public DateTime? ResolvedAt { get; set; }
 
     public string? ResolutionNotes { get; set; }
+
+    public ICollection<IncidentActivity> Activities { get; set; }
+    = new List<IncidentActivity>();
 }

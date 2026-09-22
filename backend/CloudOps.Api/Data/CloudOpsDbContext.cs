@@ -11,4 +11,5 @@ public class CloudOpsDbContext : DbContext
     }
 
     public DbSet<Incident> Incidents => Set<Incident>();
+    public DbSet<IncidentActivity> IncidentActivities { get; set; }
 }
