@@ -12,6 +12,16 @@ type Incident = {
   resolutionNotes: string | null;
 };
 
+type IncidentActivity = {
+  id: number;
+  incidentId: number;
+  activityType: string;
+  description: string;
+  previousValue: string | null;
+  newValue: string | null;
+  createdAt: string;
+};
+
 type IncidentDetailsProps = {
   incidentId: number;
   onClose: () => void;
@@ -24,7 +34,9 @@ function IncidentDetails({
   onUpdated,
 }: IncidentDetailsProps) {
   const [incident, setIncident] = useState<Incident | null>(null);
+  const [activities, setActivities] = useState<IncidentActivity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activityLoading, setActivityLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
@@ -54,7 +66,29 @@ function IncidentDetails({
       }
     }
 
+    async function loadActivities() {
+      try {
+        setActivityLoading(true);
+
+        const response = await fetch(
+          `http://localhost:5286/api/incidents/${incidentId}/activities`
+        );
+
+        if (!response.ok) {
+          throw new Error("Unable to load incident activity.");
+        }
+
+        const data: IncidentActivity[] = await response.json();
+        setActivities(data);
+      } catch (err) {
+        console.error("Unable to load incident activity:", err);
+      } finally {
+        setActivityLoading(false);
+      }
+    }
+
     loadIncident();
+    loadActivities();
   }, [incidentId]);
 
   function updateField(field: keyof Incident, value: string) {
@@ -149,6 +183,31 @@ function IncidentDetails({
     }
   }
 
+  function formatActivityType(activityType: string) {
+    switch (activityType) {
+      case "IncidentCreated":
+        return "Incident Created";
+      case "TitleChanged":
+        return "Title Changed";
+      case "DescriptionChanged":
+        return "Description Changed";
+      case "SeverityChanged":
+        return "Severity Changed";
+      case "StatusChanged":
+        return "Status Changed";
+      case "AssignmentChanged":
+        return "Assigned Team Changed";
+      case "ResolutionNotesChanged":
+        return "Resolution Notes Updated";
+      default:
+        return activityType;
+    }
+  }
+
+  function formatActivityDate(date: string) {
+    return new Date(date).toLocaleString();
+  }
+
   if (loading) {
     return (
       <div className="incident-details">
@@ -197,7 +256,9 @@ function IncidentDetails({
           <input
             id="details-title"
             value={incident.title}
-            onChange={(event) => updateField("title", event.target.value)}
+            onChange={(event) =>
+              updateField("title", event.target.value)
+            }
           />
         </div>
 
@@ -206,7 +267,9 @@ function IncidentDetails({
           <select
             id="details-severity"
             value={incident.severity}
-            onChange={(event) => updateField("severity", event.target.value)}
+            onChange={(event) =>
+              updateField("severity", event.target.value)
+            }
           >
             <option value="Low">Low</option>
             <option value="Medium">Medium</option>
@@ -220,7 +283,9 @@ function IncidentDetails({
           <select
             id="details-status"
             value={incident.status}
-            onChange={(event) => updateField("status", event.target.value)}
+            onChange={(event) =>
+              updateField("status", event.target.value)
+            }
           >
             <option value="Open">Open</option>
             <option value="Investigating">Investigating</option>
@@ -264,6 +329,74 @@ function IncidentDetails({
           />
         </div>
       </div>
+
+      <section className="activity-section">
+        <div className="activity-header">
+          <div>
+            <p className="eyebrow">INCIDENT HISTORY</p>
+            <h3>Activity Timeline</h3>
+          </div>
+
+          <span className="activity-count">
+            {activities.length}{" "}
+            {activities.length === 1 ? "event" : "events"}
+          </span>
+        </div>
+
+        {activityLoading ? (
+          <p className="activity-empty">Loading activity...</p>
+        ) : activities.length === 0 ? (
+          <p className="activity-empty">
+            No activity has been recorded for this incident yet.
+          </p>
+        ) : (
+          <div className="activity-timeline">
+            {activities.map((activity) => (
+              <div className="activity-item" key={activity.id}>
+                <div className="activity-marker">
+                  <span />
+                </div>
+
+                <div className="activity-content">
+                  <div className="activity-title-row">
+                    <strong>
+                      {formatActivityType(activity.activityType)}
+                    </strong>
+
+                    <time>
+                      {formatActivityDate(activity.createdAt)}
+                    </time>
+                  </div>
+
+                  <p>{activity.description}</p>
+
+                  {(activity.previousValue !== null ||
+                    activity.newValue !== null) && (
+                    <div className="activity-change">
+                      {activity.previousValue !== null && (
+                        <span className="activity-old-value">
+                          {activity.previousValue || "None"}
+                        </span>
+                      )}
+
+                      {activity.previousValue !== null &&
+                        activity.newValue !== null && (
+                          <span className="activity-arrow">→</span>
+                        )}
+
+                      {activity.newValue !== null && (
+                        <span className="activity-new-value">
+                          {activity.newValue || "None"}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <div className="details-actions">
         <button
