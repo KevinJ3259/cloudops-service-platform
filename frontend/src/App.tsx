@@ -15,6 +15,8 @@ interface Incident {
   resolutionNotes: string | null;
 }
 
+type SortOption = "newest" | "oldest" | "severity-high" | "severity-low" | "status";
+
 interface IncidentForm {
   title: string;
   description: string;
@@ -33,6 +35,7 @@ function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [severityFilter, setSeverityFilter] = useState("All");
+  const [sortOption, setSortOption] = useState<SortOption>("newest");
   const [selectedIncidentId, setSelectedIncidentId] = useState<number | null>(null);
 
   const [form, setForm] = useState<IncidentForm>({
@@ -135,6 +138,31 @@ function App() {
       incident.severity.toLowerCase() === severityFilter.toLowerCase();
 
     return matchesSearch && matchesStatus && matchesSeverity;
+  });
+
+  const severityRank: Record<string, number> = {
+    critical: 4,
+    high: 3,
+    medium: 2,
+    low: 1,
+  };
+
+  const sortedIncidents = [...filteredIncidents].sort((a, b) => {
+    switch (sortOption) {
+      case "oldest":
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      case "severity-high":
+        return (severityRank[b.severity.toLowerCase()] ?? 0) -
+          (severityRank[a.severity.toLowerCase()] ?? 0);
+      case "severity-low":
+        return (severityRank[a.severity.toLowerCase()] ?? 0) -
+          (severityRank[b.severity.toLowerCase()] ?? 0);
+      case "status":
+        return a.status.localeCompare(b.status);
+      case "newest":
+      default:
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
   });
 
   const hasActiveFilters =
@@ -244,6 +272,23 @@ function App() {
                 <option value="Medium">Medium</option>
                 <option value="High">High</option>
                 <option value="Critical">Critical</option>
+              </select>
+            </div>
+
+            <div className="filter-group">
+              <label htmlFor="sortOption">Sort By</label>
+              <select
+                id="sortOption"
+                value={sortOption}
+                onChange={(event) =>
+                  setSortOption(event.target.value as SortOption)
+                }
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="severity-high">Severity: High to Low</option>
+                <option value="severity-low">Severity: Low to High</option>
+                <option value="status">Status A-Z</option>
               </select>
             </div>
 
@@ -357,8 +402,8 @@ function App() {
                 </thead>
 
                 <tbody>
-                  {filteredIncidents.length > 0 ? (
-                    filteredIncidents.map((incident) => (
+                  {sortedIncidents.length > 0 ? (
+                    sortedIncidents.map((incident) => (
                       <tr
                         key={incident.id}
                         className="incident-row"
