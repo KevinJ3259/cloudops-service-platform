@@ -22,7 +22,10 @@ type SortOption =
   | "oldest"
   | "severity-high"
   | "severity-low"
-  | "status";
+  | "status"
+  | "sla-soonest"
+  | "sla-latest"
+  | "sla-overdue";
 
 type SlaStatus = "On Track" | "At Risk" | "Breached" | "Met" | "Not Set";
 
@@ -291,6 +294,55 @@ function App() {
           (severityRank[b.severity.toLowerCase()] ?? 0)
         );
 
+      case "sla-soonest": {
+        const aDue = a.slaDueAt
+          ? new Date(a.slaDueAt).getTime()
+          : Number.POSITIVE_INFINITY;
+        const bDue = b.slaDueAt
+          ? new Date(b.slaDueAt).getTime()
+          : Number.POSITIVE_INFINITY;
+
+        return aDue - bDue;
+      }
+
+      case "sla-latest": {
+        const aDue = a.slaDueAt
+          ? new Date(a.slaDueAt).getTime()
+          : Number.NEGATIVE_INFINITY;
+        const bDue = b.slaDueAt
+          ? new Date(b.slaDueAt).getTime()
+          : Number.NEGATIVE_INFINITY;
+
+        return bDue - aDue;
+      }
+
+      case "sla-overdue": {
+        const now = Date.now();
+
+        const getOverdueMilliseconds = (incident: Incident) => {
+          if (!incident.slaDueAt) return Number.NEGATIVE_INFINITY;
+
+          const slaStatus = getSlaStatus(incident);
+
+          if (slaStatus !== "Breached") {
+            return Number.NEGATIVE_INFINITY;
+          }
+
+          const comparisonTime =
+            incident.status.toLowerCase() === "resolved" &&
+            incident.resolvedAt
+              ? new Date(incident.resolvedAt).getTime()
+              : now;
+
+          return comparisonTime - new Date(incident.slaDueAt).getTime();
+        };
+
+        return (
+          getOverdueMilliseconds(b) -
+          getOverdueMilliseconds(a)
+        );
+      }
+
       case "status":
         return a.status.localeCompare(b.status);
 
@@ -477,6 +529,15 @@ function App() {
                 </option>
                 <option value="severity-low">
                   Severity: Low to High
+                </option>
+                <option value="sla-soonest">
+                  SLA: Deadline Soonest
+                </option>
+                <option value="sla-latest">
+                  SLA: Deadline Latest
+                </option>
+                <option value="sla-overdue">
+                  SLA: Most Overdue
                 </option>
                 <option value="status">Status A-Z</option>
               </select>
