@@ -24,6 +24,10 @@ public class Incident
 
     public DateTime? SlaDueAt { get; set; }
 
+    public string EscalationLevel { get; set; } = "L1 Support";
+
+    public DateTime? EscalatedAt { get; set; }
+
     public ICollection<IncidentActivity> Activities { get; set; }
         = new List<IncidentActivity>();
 

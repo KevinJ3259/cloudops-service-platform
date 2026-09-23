@@ -138,6 +138,8 @@ public class IncidentsController : ControllerBase
     {
         incident.Id = 0;
         incident.CreatedAt = DateTime.UtcNow;
+        incident.EscalationLevel = "L1 Support";
+        incident.EscalatedAt = null;
 
         ApplyPriorityAndSla(incident);
 
@@ -233,6 +235,33 @@ public class IncidentsController : ControllerBase
             updatedIncident.ResolutionNotes
         );
 
+        var requestedEscalationLevel =
+            NormalizeEscalationLevel(updatedIncident.EscalationLevel);
+
+        if (requestedEscalationLevel is null)
+        {
+            return BadRequest(
+                "Escalation level must be L1 Support, L2 Engineering, or Cloud Operations.");
+        }
+
+        var escalationChanged = !string.Equals(
+            incident.EscalationLevel,
+            requestedEscalationLevel,
+            StringComparison.OrdinalIgnoreCase
+        );
+
+        if (escalationChanged)
+        {
+            AddActivityIfChanged(
+                activities,
+                id,
+                "EscalationLevelChanged",
+                "Incident escalation level changed.",
+                incident.EscalationLevel,
+                requestedEscalationLevel
+            );
+        }
+
         var severityChanged = !string.Equals(
             incident.Severity,
             updatedIncident.Severity,
@@ -249,6 +278,12 @@ public class IncidentsController : ControllerBase
         incident.AssignedTo = updatedIncident.AssignedTo;
         incident.ResolvedAt = updatedIncident.ResolvedAt;
         incident.ResolutionNotes = updatedIncident.ResolutionNotes;
+
+        if (escalationChanged)
+        {
+            incident.EscalationLevel = requestedEscalationLevel;
+            incident.EscalatedAt = DateTime.UtcNow;
+        }
 
         if (severityChanged)
         {
@@ -342,6 +377,40 @@ public class IncidentsController : ControllerBase
         });
     }
 
+    // POST: api/incidents/backfill-escalation
+    // One-time maintenance endpoint for incidents created before escalation tracking existed.
+    [HttpPost("backfill-escalation")]
+    public async Task<IActionResult> BackfillEscalation()
+    {
+        var incidents = await _context.Incidents
+            .Where(i => i.EscalationLevel == null || i.EscalationLevel == "")
+            .ToListAsync();
+
+        if (incidents.Count == 0)
+        {
+            return Ok(new
+            {
+                updatedCount = 0,
+                message = "No incidents require escalation backfill."
+            });
+        }
+
+        foreach (var incident in incidents)
+        {
+            incident.EscalationLevel = "L1 Support";
+            incident.EscalatedAt = null;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            updatedCount = incidents.Count,
+            incidentIds = incidents.Select(i => i.Id).ToArray(),
+            message = "Escalation backfill completed successfully."
+        });
+    }
+
     // DELETE: api/incidents/1
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteIncident(int id)
@@ -357,6 +426,27 @@ public class IncidentsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    private static string? NormalizeEscalationLevel(string? escalationLevel)
+    {
+        var value = escalationLevel?.Trim();
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "L1 Support";
+        }
+
+        if (value.Equals("L1 Support", StringComparison.OrdinalIgnoreCase))
+            return "L1 Support";
+
+        if (value.Equals("L2 Engineering", StringComparison.OrdinalIgnoreCase))
+            return "L2 Engineering";
+
+        if (value.Equals("Cloud Operations", StringComparison.OrdinalIgnoreCase))
+            return "Cloud Operations";
+
+        return null;
     }
 
     private static void ApplyPriorityAndSla(Incident incident)
