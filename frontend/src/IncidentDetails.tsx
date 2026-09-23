@@ -12,6 +12,8 @@ type Incident = {
   resolutionNotes: string | null;
   priority: string;
   slaDueAt: string | null;
+  escalationLevel: string;
+  escalatedAt: string | null;
 };
 
 type IncidentActivity = {
@@ -256,6 +258,7 @@ function IncidentDetails({
             assignedTo: incident.assignedTo,
             resolvedAt,
             resolutionNotes: incident.resolutionNotes,
+            escalationLevel: incident.escalationLevel,
           }),
         }
       );
@@ -334,6 +337,8 @@ function IncidentDetails({
         return "Priority Changed";
       case "SlaDueAtChanged":
         return "SLA Deadline Changed";
+      case "EscalationLevelChanged":
+        return "Escalation Level Changed";
       default:
         return activityType;
     }
@@ -454,6 +459,21 @@ function IncidentDetails({
         </div>
 
         <div className="form-group full-width">
+          <label htmlFor="details-escalation">Escalation Level</label>
+          <select
+            id="details-escalation"
+            value={incident.escalationLevel || "L1 Support"}
+            onChange={(event) =>
+              updateField("escalationLevel", event.target.value)
+            }
+          >
+            <option value="L1 Support">L1 Support</option>
+            <option value="L2 Engineering">L2 Engineering</option>
+            <option value="Cloud Operations">Cloud Operations</option>
+          </select>
+        </div>
+
+        <div className="form-group full-width">
           <label htmlFor="details-resolution">Resolution Notes</label>
           <textarea
             id="details-resolution"
@@ -480,6 +500,31 @@ function IncidentDetails({
           <div className="sla-detail-card"><span>SLA Status</span><strong>{slaStatus}</strong></div>
           <div className="sla-detail-card"><span>Time</span><strong>{getSlaTimeText(incident)}</strong></div>
           <div className="sla-detail-card"><span>SLA Deadline</span><strong>{incident.slaDueAt ? new Date(incident.slaDueAt).toLocaleString() : "Not Set"}</strong></div>
+        </div>
+      </section>
+
+      <section className="escalation-details-section">
+        <div className="sla-details-header">
+          <div>
+            <p className="eyebrow">INCIDENT ESCALATION</p>
+            <h3>Escalation Tracking</h3>
+          </div>
+        </div>
+
+        <div className="sla-details-grid">
+          <div className="sla-detail-card">
+            <span>Current Level</span>
+            <strong>{incident.escalationLevel || "L1 Support"}</strong>
+          </div>
+
+          <div className="sla-detail-card">
+            <span>Last Escalated</span>
+            <strong>
+              {incident.escalatedAt
+                ? new Date(incident.escalatedAt).toLocaleString()
+                : "Not escalated"}
+            </strong>
+          </div>
         </div>
       </section>
 
