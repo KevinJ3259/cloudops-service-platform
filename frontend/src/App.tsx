@@ -15,6 +15,8 @@ interface Incident {
   resolutionNotes: string | null;
   priority: string;
   slaDueAt: string | null;
+  escalationLevel: string;
+  escalatedAt: string | null;
 }
 
 type SortOption =
@@ -138,6 +140,7 @@ function App() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [severityFilter, setSeverityFilter] = useState("All");
   const [slaFilter, setSlaFilter] = useState("All");
+  const [escalationFilter, setEscalationFilter] = useState("All");
   const [sortOption, setSortOption] = useState<SortOption>("newest");
   const [selectedIncidentId, setSelectedIncidentId] =
     useState<number | null>(null);
@@ -250,6 +253,9 @@ function App() {
         .toLowerCase()
         .includes(normalizedSearch) ||
       slaStatus.includes(normalizedSearch) ||
+      (incident.escalationLevel ?? "")
+        .toLowerCase()
+        .includes(normalizedSearch) ||
       String(incident.id).includes(normalizedSearch);
 
     const matchesStatus =
@@ -264,7 +270,18 @@ function App() {
       slaFilter === "All" ||
       getSlaStatus(incident).toLowerCase() === slaFilter.toLowerCase();
 
-    return matchesSearch && matchesStatus && matchesSeverity && matchesSla;
+    const matchesEscalation =
+      escalationFilter === "All" ||
+      (incident.escalationLevel || "L1 Support").toLowerCase() ===
+        escalationFilter.toLowerCase();
+
+    return (
+      matchesSearch &&
+      matchesStatus &&
+      matchesSeverity &&
+      matchesSla &&
+      matchesEscalation
+    );
   });
 
   const severityRank: Record<string, number> = {
@@ -359,7 +376,8 @@ function App() {
     searchTerm.trim() !== "" ||
     statusFilter !== "All" ||
     severityFilter !== "All" ||
-    slaFilter !== "All";
+    slaFilter !== "All" ||
+    escalationFilter !== "All";
 
   return (
     <div className="app">
@@ -511,6 +529,23 @@ function App() {
             </div>
 
             <div className="filter-group">
+              <label htmlFor="escalationFilter">Escalation Level</label>
+
+              <select
+                id="escalationFilter"
+                value={escalationFilter}
+                onChange={(event) =>
+                  setEscalationFilter(event.target.value)
+                }
+              >
+                <option value="All">All Escalation Levels</option>
+                <option value="L1 Support">L1 Support</option>
+                <option value="L2 Engineering">L2 Engineering</option>
+                <option value="Cloud Operations">Cloud Operations</option>
+              </select>
+            </div>
+
+            <div className="filter-group">
               <label htmlFor="sortOption">Sort By</label>
 
               <select
@@ -552,6 +587,7 @@ function App() {
                   setStatusFilter("All");
                   setSeverityFilter("All");
                   setSlaFilter("All");
+                  setEscalationFilter("All");
                 }}
               >
                 Clear Filters
@@ -678,6 +714,7 @@ function App() {
                     <th>Priority</th>
                     <th>Status</th>
                     <th>SLA</th>
+                    <th>Escalation</th>
                     <th>Assigned To</th>
                     <th>Created</th>
                   </tr>
@@ -757,6 +794,12 @@ function App() {
                           </td>
 
                           <td>
+                            <span className="escalation-badge">
+                              {incident.escalationLevel || "L1 Support"}
+                            </span>
+                          </td>
+
+                          <td>
                             {incident.assignedTo ??
                               "Unassigned"}
                           </td>
@@ -771,7 +814,7 @@ function App() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={8}>
+                      <td colSpan={9}>
                         No incidents match your search or
                         filters.
                       </td>

@@ -1076,3 +1076,20 @@ td strong {
     grid-template-columns: 1fr;
   }
 }
+
+/* Incident Escalation Dashboard */
+
+.escalation-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 110px;
+  padding: 5px 10px;
+  border: 1px solid #334155;
+  border-radius: 999px;
+  background: #111c2d;
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
