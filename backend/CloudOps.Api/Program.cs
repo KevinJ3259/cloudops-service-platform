@@ -1,4 +1,5 @@
 using CloudOps.Api.Data;
+using CloudOps.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,6 +12,8 @@ builder.Services.AddDbContext<CloudOpsDbContext>(options =>
         builder.Configuration.GetConnectionString("DefaultConnection")
     )
 );
+
+builder.Services.AddHostedService<AutomaticEscalationBackgroundService>();
 
 builder.Services.AddCors(options =>
 {
@@ -31,9 +34,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseCors("Frontend");
-
 app.MapControllers();
 
 app.Run();

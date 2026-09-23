@@ -339,6 +339,8 @@ function IncidentDetails({
         return "SLA Deadline Changed";
       case "EscalationLevelChanged":
         return "Escalation Level Changed";
+      case "AutomaticEscalation":
+        return "Automatic SLA Escalation";
       default:
         return activityType;
     }
