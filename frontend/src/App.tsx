@@ -134,6 +134,7 @@ function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [severityFilter, setSeverityFilter] = useState("All");
+  const [slaFilter, setSlaFilter] = useState("All");
   const [sortOption, setSortOption] = useState<SortOption>("newest");
   const [selectedIncidentId, setSelectedIncidentId] =
     useState<number | null>(null);
@@ -256,7 +257,11 @@ function App() {
       severityFilter === "All" ||
       incident.severity.toLowerCase() === severityFilter.toLowerCase();
 
-    return matchesSearch && matchesStatus && matchesSeverity;
+    const matchesSla =
+      slaFilter === "All" ||
+      getSlaStatus(incident).toLowerCase() === slaFilter.toLowerCase();
+
+    return matchesSearch && matchesStatus && matchesSeverity && matchesSla;
   });
 
   const severityRank: Record<string, number> = {
@@ -301,7 +306,8 @@ function App() {
   const hasActiveFilters =
     searchTerm.trim() !== "" ||
     statusFilter !== "All" ||
-    severityFilter !== "All";
+    severityFilter !== "All" ||
+    slaFilter !== "All";
 
   return (
     <div className="app">
@@ -436,6 +442,23 @@ function App() {
             </div>
 
             <div className="filter-group">
+              <label htmlFor="slaFilter">SLA Status</label>
+
+              <select
+                id="slaFilter"
+                value={slaFilter}
+                onChange={(event) => setSlaFilter(event.target.value)}
+              >
+                <option value="All">All SLA Statuses</option>
+                <option value="On Track">On Track</option>
+                <option value="At Risk">At Risk</option>
+                <option value="Breached">Breached</option>
+                <option value="Met">Met</option>
+                <option value="Not Set">Not Set</option>
+              </select>
+            </div>
+
+            <div className="filter-group">
               <label htmlFor="sortOption">Sort By</label>
 
               <select
@@ -467,6 +490,7 @@ function App() {
                   setSearchTerm("");
                   setStatusFilter("All");
                   setSeverityFilter("All");
+                  setSlaFilter("All");
                 }}
               >
                 Clear Filters
