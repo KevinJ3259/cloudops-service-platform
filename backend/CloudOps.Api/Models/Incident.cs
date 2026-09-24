@@ -33,4 +33,7 @@ public class Incident
 
     public ICollection<IncidentWorkNote> WorkNotes { get; set; }
         = new List<IncidentWorkNote>();
+
+    public ICollection<IncidentCommunication> Communications { get; set; }
+        = new List<IncidentCommunication>();
 }
