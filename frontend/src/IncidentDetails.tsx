@@ -532,13 +532,22 @@ function IncidentDetails({
 
         <div className="form-group full-width">
           <label htmlFor="details-assigned">Assigned Team</label>
-          <input
+          <select
             id="details-assigned"
-            value={incident.assignedTo}
+            value={incident.assignedTo || ""}
             onChange={(event) =>
               updateField("assignedTo", event.target.value)
             }
-          />
+          >
+            <option value="">Unassigned</option>
+            <option value="Service Desk">Service Desk</option>
+            <option value="L1 Support">L1 Support</option>
+            <option value="L2 Engineering">L2 Engineering</option>
+            <option value="Cloud Operations">Cloud Operations</option>
+            <option value="Network Operations">Network Operations</option>
+            <option value="Database Operations">Database Operations</option>
+            <option value="Security Operations">Security Operations</option>
+          </select>
         </div>
 
         <div className="form-group full-width">
