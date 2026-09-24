@@ -17,6 +17,8 @@ interface Incident {
   slaDueAt: string | null;
   escalationLevel: string;
   escalatedAt: string | null;
+  category: string;
+  subcategory: string | null;
 }
 
 type SortOption =
@@ -36,6 +38,8 @@ interface IncidentForm {
   description: string;
   severity: string;
   assignedTo: string;
+  category: string;
+  subcategory: string;
 }
 
 const API_URL = "http://localhost:5286/api/incidents";
@@ -142,6 +146,7 @@ function App() {
   const [slaFilter, setSlaFilter] = useState("All");
   const [escalationFilter, setEscalationFilter] = useState("All");
   const [teamFilter, setTeamFilter] = useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("All");
   const [sortOption, setSortOption] = useState<SortOption>("newest");
   const [selectedIncidentId, setSelectedIncidentId] =
     useState<number | null>(null);
@@ -151,6 +156,8 @@ function App() {
     description: "",
     severity: "Medium",
     assignedTo: "",
+    category: "Application",
+    subcategory: "",
   });
 
   const loadIncidents = useCallback(async () => {
@@ -195,6 +202,8 @@ function App() {
           severity: form.severity,
           status: "Open",
           assignedTo: form.assignedTo || null,
+          category: form.category,
+          subcategory: form.subcategory.trim() || null,
         }),
       });
 
@@ -207,6 +216,8 @@ function App() {
         description: "",
         severity: "Medium",
         assignedTo: "",
+        category: "Application",
+        subcategory: "",
       });
 
       setShowForm(false);
@@ -257,6 +268,12 @@ function App() {
       (incident.escalationLevel ?? "")
         .toLowerCase()
         .includes(normalizedSearch) ||
+      (incident.category ?? "")
+        .toLowerCase()
+        .includes(normalizedSearch) ||
+      (incident.subcategory ?? "")
+        .toLowerCase()
+        .includes(normalizedSearch) ||
       String(incident.id).includes(normalizedSearch);
 
     const matchesStatus =
@@ -283,13 +300,19 @@ function App() {
         : (incident.assignedTo ?? "").toLowerCase() ===
           teamFilter.toLowerCase());
 
+    const matchesCategory =
+      categoryFilter === "All" ||
+      (incident.category || "Application").toLowerCase() ===
+        categoryFilter.toLowerCase();
+
     return (
       matchesSearch &&
       matchesStatus &&
       matchesSeverity &&
       matchesSla &&
       matchesEscalation &&
-      matchesTeam
+      matchesTeam &&
+      matchesCategory
     );
   });
 
@@ -387,7 +410,8 @@ function App() {
     severityFilter !== "All" ||
     slaFilter !== "All" ||
     escalationFilter !== "All" ||
-    teamFilter !== "All";
+    teamFilter !== "All" ||
+    categoryFilter !== "All";
 
   return (
     <div className="app">
@@ -576,6 +600,26 @@ function App() {
             </div>
 
             <div className="filter-group">
+              <label htmlFor="categoryFilter">Category</label>
+
+              <select
+                id="categoryFilter"
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+              >
+                <option value="All">All Categories</option>
+                <option value="Application">Application</option>
+                <option value="Cloud / Infrastructure">Cloud / Infrastructure</option>
+                <option value="Network">Network</option>
+                <option value="Database">Database</option>
+                <option value="Security">Security</option>
+                <option value="Hardware">Hardware</option>
+                <option value="Access / Identity">Access / Identity</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div className="filter-group">
               <label htmlFor="sortOption">Sort By</label>
 
               <select
@@ -619,6 +663,7 @@ function App() {
                   setSlaFilter("All");
                   setEscalationFilter("All");
                   setTeamFilter("All");
+                  setCategoryFilter("All");
                 }}
               >
                 Clear Filters
@@ -667,6 +712,47 @@ function App() {
                   <option value="High">High</option>
                   <option value="Critical">Critical</option>
                 </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="category">Category</label>
+
+                <select
+                  id="category"
+                  value={form.category}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      category: event.target.value,
+                    })
+                  }
+                >
+                  <option value="Application">Application</option>
+                  <option value="Cloud / Infrastructure">Cloud / Infrastructure</option>
+                  <option value="Network">Network</option>
+                  <option value="Database">Database</option>
+                  <option value="Security">Security</option>
+                  <option value="Hardware">Hardware</option>
+                  <option value="Access / Identity">Access / Identity</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="subcategory">Subcategory</label>
+
+                <input
+                  id="subcategory"
+                  type="text"
+                  value={form.subcategory}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      subcategory: event.target.value,
+                    })
+                  }
+                  placeholder="Example: API Services"
+                />
               </div>
 
               <div className="form-group full-width">
@@ -748,6 +834,7 @@ function App() {
                   <tr>
                     <th>ID</th>
                     <th>Incident</th>
+                    <th>Category</th>
                     <th>Severity</th>
                     <th>Priority</th>
                     <th>Status</th>
@@ -785,6 +872,15 @@ function App() {
                             <span className="description">
                               {incident.description}
                             </span>
+                          </td>
+
+                          <td>
+                            <strong>{incident.category || "Application"}</strong>
+                            {incident.subcategory && (
+                              <span className="description">
+                                {incident.subcategory}
+                              </span>
+                            )}
                           </td>
 
                           <td>
@@ -852,7 +948,7 @@ function App() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={9}>
+                      <td colSpan={10}>
                         No incidents match your search or
                         filters.
                       </td>
