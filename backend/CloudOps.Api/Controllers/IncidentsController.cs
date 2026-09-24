@@ -221,6 +221,13 @@ public class IncidentsController : ControllerBase
         incident.EscalationLevel = "L1 Support";
         incident.EscalatedAt = null;
 
+        var category = NormalizeCategory(incident.Category);
+        if (category is null)
+            return BadRequest("Category must be Application, Cloud / Infrastructure, Network, Database, Security, Hardware, Access / Identity, or Other.");
+
+        incident.Category = category;
+        incident.Subcategory = NormalizeSubcategory(incident.Subcategory);
+
         ApplyPriorityAndSla(incident);
 
         _context.Incidents.Add(incident);
@@ -259,6 +266,11 @@ public class IncidentsController : ControllerBase
             return NotFound();
         }
 
+        var requestedCategory = NormalizeCategory(updatedIncident.Category);
+        if (requestedCategory is null)
+            return BadRequest("Category must be Application, Cloud / Infrastructure, Network, Database, Security, Hardware, Access / Identity, or Other.");
+
+        var requestedSubcategory = NormalizeSubcategory(updatedIncident.Subcategory);
         var activities = new List<IncidentActivity>();
 
         AddActivityIfChanged(
@@ -315,6 +327,16 @@ public class IncidentsController : ControllerBase
             updatedIncident.ResolutionNotes
         );
 
+        AddActivityIfChanged(
+            activities, id, "CategoryChanged", "Incident category changed.",
+            incident.Category, requestedCategory
+        );
+
+        AddActivityIfChanged(
+            activities, id, "SubcategoryChanged", "Incident subcategory changed.",
+            incident.Subcategory, requestedSubcategory
+        );
+
         var requestedEscalationLevel =
             NormalizeEscalationLevel(updatedIncident.EscalationLevel);
 
@@ -358,6 +380,8 @@ public class IncidentsController : ControllerBase
         incident.AssignedTo = updatedIncident.AssignedTo;
         incident.ResolvedAt = updatedIncident.ResolvedAt;
         incident.ResolutionNotes = updatedIncident.ResolutionNotes;
+        incident.Category = requestedCategory;
+        incident.Subcategory = requestedSubcategory;
 
         if (escalationChanged)
         {
@@ -559,6 +583,32 @@ public class IncidentsController : ControllerBase
         });
     }
 
+    // POST: api/incidents/backfill-category
+    // One-time maintenance endpoint for incidents created before classification existed.
+    [HttpPost("backfill-category")]
+    public async Task<IActionResult> BackfillCategory()
+    {
+        var incidents = await _context.Incidents
+            .Where(i => i.Category == null || i.Category == "")
+            .ToListAsync();
+
+        if (incidents.Count == 0)
+            return Ok(new { updatedCount = 0, message = "No incidents require category backfill." });
+
+        foreach (var incident in incidents)
+            incident.Category = "Application";
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            updatedCount = incidents.Count,
+            incidentIds = incidents.Select(i => i.Id).ToArray(),
+            message = "Incident category backfill completed successfully."
+        });
+    }
+
+
     // DELETE: api/incidents/1
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteIncident(int id)
@@ -575,6 +625,30 @@ public class IncidentsController : ControllerBase
 
         return NoContent();
     }
+
+    private static string? NormalizeCategory(string? category)
+    {
+        var value = category?.Trim();
+
+        if (string.IsNullOrWhiteSpace(value)) return "Application";
+        if (value.Equals("Application", StringComparison.OrdinalIgnoreCase)) return "Application";
+        if (value.Equals("Cloud / Infrastructure", StringComparison.OrdinalIgnoreCase)) return "Cloud / Infrastructure";
+        if (value.Equals("Network", StringComparison.OrdinalIgnoreCase)) return "Network";
+        if (value.Equals("Database", StringComparison.OrdinalIgnoreCase)) return "Database";
+        if (value.Equals("Security", StringComparison.OrdinalIgnoreCase)) return "Security";
+        if (value.Equals("Hardware", StringComparison.OrdinalIgnoreCase)) return "Hardware";
+        if (value.Equals("Access / Identity", StringComparison.OrdinalIgnoreCase)) return "Access / Identity";
+        if (value.Equals("Other", StringComparison.OrdinalIgnoreCase)) return "Other";
+
+        return null;
+    }
+
+    private static string? NormalizeSubcategory(string? subcategory)
+    {
+        var value = subcategory?.Trim();
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
 
     private static string? NormalizeCommunicationType(
         string? communicationType)
