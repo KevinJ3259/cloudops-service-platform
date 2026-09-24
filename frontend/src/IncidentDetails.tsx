@@ -14,6 +14,8 @@ type Incident = {
   slaDueAt: string | null;
   escalationLevel: string;
   escalatedAt: string | null;
+  category: string;
+  subcategory: string | null;
 };
 
 type IncidentActivity = {
@@ -338,6 +340,8 @@ function IncidentDetails({
             resolvedAt,
             resolutionNotes: incident.resolutionNotes,
             escalationLevel: incident.escalationLevel,
+            category: incident.category,
+            subcategory: incident.subcategory,
           }),
         }
       );
@@ -422,6 +426,10 @@ function IncidentDetails({
         return "Automatic SLA Escalation";
       case "CommunicationAdded":
         return "Communication Added";
+      case "CategoryChanged":
+        return "Category Changed";
+      case "SubcategoryChanged":
+        return "Subcategory Changed";
       default:
         return activityType;
     }
@@ -548,6 +556,38 @@ function IncidentDetails({
             <option value="Database Operations">Database Operations</option>
             <option value="Security Operations">Security Operations</option>
           </select>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="details-category">Category</label>
+          <select
+            id="details-category"
+            value={incident.category || "Application"}
+            onChange={(event) =>
+              updateField("category", event.target.value)
+            }
+          >
+            <option value="Application">Application</option>
+            <option value="Cloud / Infrastructure">Cloud / Infrastructure</option>
+            <option value="Network">Network</option>
+            <option value="Database">Database</option>
+            <option value="Security">Security</option>
+            <option value="Hardware">Hardware</option>
+            <option value="Access / Identity">Access / Identity</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="details-subcategory">Subcategory</label>
+          <input
+            id="details-subcategory"
+            value={incident.subcategory ?? ""}
+            onChange={(event) =>
+              updateField("subcategory", event.target.value)
+            }
+            placeholder="Example: API Services"
+          />
         </div>
 
         <div className="form-group full-width">
