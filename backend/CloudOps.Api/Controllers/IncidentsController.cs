@@ -132,6 +132,86 @@ public class IncidentsController : ControllerBase
         );
     }
 
+    // GET: api/incidents/1/communications
+    [HttpGet("{id:int}/communications")]
+    public async Task<ActionResult<IEnumerable<IncidentCommunication>>>
+        GetIncidentCommunications(int id)
+    {
+        var incidentExists = await _context.Incidents.AnyAsync(i => i.Id == id);
+
+        if (!incidentExists)
+        {
+            return NotFound();
+        }
+
+        var communications = await _context.IncidentCommunications
+            .Where(c => c.IncidentId == id)
+            .OrderByDescending(c => c.CreatedAt)
+            .ToListAsync();
+
+        return Ok(communications);
+    }
+
+    // POST: api/incidents/1/communications
+    [HttpPost("{id:int}/communications")]
+    public async Task<ActionResult<IncidentCommunication>>
+        CreateIncidentCommunication(int id, IncidentCommunication communication)
+    {
+        var incident = await _context.Incidents.FindAsync(id);
+
+        if (incident is null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(communication.Author))
+        {
+            return BadRequest("Author is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(communication.Message))
+        {
+            return BadRequest("Communication message is required.");
+        }
+
+        var communicationType =
+            NormalizeCommunicationType(communication.CommunicationType);
+
+        if (communicationType is null)
+        {
+            return BadRequest(
+                "Communication type must be Customer Update, Internal Stakeholder Update, or Resolution Notice.");
+        }
+
+        communication.Id = 0;
+        communication.IncidentId = id;
+        communication.Author = communication.Author.Trim();
+        communication.Message = communication.Message.Trim();
+        communication.CommunicationType = communicationType;
+        communication.CreatedAt = DateTime.UtcNow;
+        communication.Incident = null;
+
+        _context.IncidentCommunications.Add(communication);
+
+        _context.IncidentActivities.Add(new IncidentActivity
+        {
+            IncidentId = id,
+            ActivityType = "CommunicationAdded",
+            Description =
+                $"{communication.CommunicationType} added by {communication.Author}.",
+            NewValue = communication.Message,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        return CreatedAtAction(
+            nameof(GetIncidentCommunications),
+            new { id },
+            communication
+        );
+    }
+
     // POST: api/incidents
     [HttpPost]
     public async Task<ActionResult<Incident>> CreateIncident(Incident incident)
@@ -494,6 +574,30 @@ public class IncidentsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    private static string? NormalizeCommunicationType(
+        string? communicationType)
+    {
+        var value = communicationType?.Trim();
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Customer Update";
+        }
+
+        if (value.Equals("Customer Update", StringComparison.OrdinalIgnoreCase))
+            return "Customer Update";
+
+        if (value.Equals(
+            "Internal Stakeholder Update",
+            StringComparison.OrdinalIgnoreCase))
+            return "Internal Stakeholder Update";
+
+        if (value.Equals("Resolution Notice", StringComparison.OrdinalIgnoreCase))
+            return "Resolution Notice";
+
+        return null;
     }
 
     private static string? GetAutomaticEscalationLevel(
