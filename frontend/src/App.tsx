@@ -141,6 +141,7 @@ function App() {
   const [severityFilter, setSeverityFilter] = useState("All");
   const [slaFilter, setSlaFilter] = useState("All");
   const [escalationFilter, setEscalationFilter] = useState("All");
+  const [teamFilter, setTeamFilter] = useState("All");
   const [sortOption, setSortOption] = useState<SortOption>("newest");
   const [selectedIncidentId, setSelectedIncidentId] =
     useState<number | null>(null);
@@ -275,12 +276,20 @@ function App() {
       (incident.escalationLevel || "L1 Support").toLowerCase() ===
         escalationFilter.toLowerCase();
 
+    const matchesTeam =
+      teamFilter === "All" ||
+      (teamFilter === "Unassigned"
+        ? !incident.assignedTo
+        : (incident.assignedTo ?? "").toLowerCase() ===
+          teamFilter.toLowerCase());
+
     return (
       matchesSearch &&
       matchesStatus &&
       matchesSeverity &&
       matchesSla &&
-      matchesEscalation
+      matchesEscalation &&
+      matchesTeam
     );
   });
 
@@ -377,7 +386,8 @@ function App() {
     statusFilter !== "All" ||
     severityFilter !== "All" ||
     slaFilter !== "All" ||
-    escalationFilter !== "All";
+    escalationFilter !== "All" ||
+    teamFilter !== "All";
 
   return (
     <div className="app">
@@ -546,6 +556,26 @@ function App() {
             </div>
 
             <div className="filter-group">
+              <label htmlFor="teamFilter">Assigned Team</label>
+
+              <select
+                id="teamFilter"
+                value={teamFilter}
+                onChange={(event) => setTeamFilter(event.target.value)}
+              >
+                <option value="All">All Teams</option>
+                <option value="Unassigned">Unassigned</option>
+                <option value="Service Desk">Service Desk</option>
+                <option value="L1 Support">L1 Support</option>
+                <option value="L2 Engineering">L2 Engineering</option>
+                <option value="Cloud Operations">Cloud Operations</option>
+                <option value="Network Operations">Network Operations</option>
+                <option value="Database Operations">Database Operations</option>
+                <option value="Security Operations">Security Operations</option>
+              </select>
+            </div>
+
+            <div className="filter-group">
               <label htmlFor="sortOption">Sort By</label>
 
               <select
@@ -588,6 +618,7 @@ function App() {
                   setSeverityFilter("All");
                   setSlaFilter("All");
                   setEscalationFilter("All");
+                  setTeamFilter("All");
                 }}
               >
                 Clear Filters
@@ -663,9 +694,8 @@ function App() {
                   Assigned Team
                 </label>
 
-                <input
+                <select
                   id="assignedTo"
-                  type="text"
                   value={form.assignedTo}
                   onChange={(event) =>
                     setForm({
@@ -673,8 +703,16 @@ function App() {
                       assignedTo: event.target.value,
                     })
                   }
-                  placeholder="Example: Platform Engineering"
-                />
+                >
+                  <option value="">Unassigned</option>
+                  <option value="Service Desk">Service Desk</option>
+                  <option value="L1 Support">L1 Support</option>
+                  <option value="L2 Engineering">L2 Engineering</option>
+                  <option value="Cloud Operations">Cloud Operations</option>
+                  <option value="Network Operations">Network Operations</option>
+                  <option value="Database Operations">Database Operations</option>
+                  <option value="Security Operations">Security Operations</option>
+                </select>
               </div>
 
               <div className="form-actions full-width">
