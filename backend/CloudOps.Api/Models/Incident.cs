@@ -28,6 +28,10 @@ public class Incident
 
     public DateTime? EscalatedAt { get; set; }
 
+    public string Category { get; set; } = "Application";
+
+    public string? Subcategory { get; set; }
+
     public ICollection<IncidentActivity> Activities { get; set; }
         = new List<IncidentActivity>();
 
