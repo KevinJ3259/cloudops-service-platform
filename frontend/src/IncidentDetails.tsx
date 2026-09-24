@@ -34,6 +34,15 @@ type IncidentWorkNote = {
   createdAt: string;
 };
 
+type IncidentCommunication = {
+  id: number;
+  incidentId: number;
+  author: string;
+  message: string;
+  communicationType: string;
+  createdAt: string;
+};
+
 type IncidentDetailsProps = {
   incidentId: number;
   onClose: () => void;
@@ -91,12 +100,18 @@ function IncidentDetails({
   const [incident, setIncident] = useState<Incident | null>(null);
   const [activities, setActivities] = useState<IncidentActivity[]>([]);
   const [workNotes, setWorkNotes] = useState<IncidentWorkNote[]>([]);
+  const [communications, setCommunications] = useState<IncidentCommunication[]>([]);
   const [loading, setLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(true);
   const [workNotesLoading, setWorkNotesLoading] = useState(true);
+  const [communicationsLoading, setCommunicationsLoading] = useState(true);
   const [workNoteAuthor, setWorkNoteAuthor] = useState("Kevin Jordan");
   const [workNoteText, setWorkNoteText] = useState("");
   const [addingWorkNote, setAddingWorkNote] = useState(false);
+  const [communicationAuthor, setCommunicationAuthor] = useState("Kevin Jordan");
+  const [communicationMessage, setCommunicationMessage] = useState("");
+  const [communicationType, setCommunicationType] = useState("Customer Update");
+  const [addingCommunication, setAddingCommunication] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
@@ -163,9 +178,26 @@ function IncidentDetails({
       }
     }
 
+    async function loadCommunications() {
+      try {
+        setCommunicationsLoading(true);
+        const response = await fetch(
+          `http://localhost:5286/api/incidents/${incidentId}/communications`
+        );
+        if (!response.ok) throw new Error("Unable to load communications.");
+        const data: IncidentCommunication[] = await response.json();
+        setCommunications(data);
+      } catch (err) {
+        console.error("Unable to load communications:", err);
+      } finally {
+        setCommunicationsLoading(false);
+      }
+    }
+
     loadIncident();
     loadActivities();
     loadWorkNotes();
+    loadCommunications();
   }, [incidentId]);
 
   function updateField(field: keyof Incident, value: string) {
@@ -228,6 +260,53 @@ function IncidentDetails({
       setError(err instanceof Error ? err.message : "Unable to add work note.");
     } finally {
       setAddingWorkNote(false);
+    }
+  }
+
+  async function handleAddCommunication() {
+    if (!incident) return;
+
+    const author = communicationAuthor.trim();
+    const message = communicationMessage.trim();
+
+    if (!author || !message) {
+      setError("Author and communication message are required.");
+      return;
+    }
+
+    try {
+      setAddingCommunication(true);
+      setError("");
+
+      const response = await fetch(
+        `http://localhost:5286/api/incidents/${incident.id}/communications`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            author,
+            message,
+            communicationType,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const responseMessage = await response.text();
+        throw new Error(responseMessage || "Unable to add communication.");
+      }
+
+      const createdCommunication: IncidentCommunication = await response.json();
+      setCommunications((current) => [createdCommunication, ...current]);
+      setCommunicationMessage("");
+      await refreshActivities();
+      onUpdated();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to add communication."
+      );
+    } finally {
+      setAddingCommunication(false);
     }
   }
 
@@ -341,6 +420,8 @@ function IncidentDetails({
         return "Escalation Level Changed";
       case "AutomaticEscalation":
         return "Automatic SLA Escalation";
+      case "CommunicationAdded":
+        return "Communication Added";
       default:
         return activityType;
     }
@@ -528,6 +609,98 @@ function IncidentDetails({
             </strong>
           </div>
         </div>
+      </section>
+
+      <section className="work-notes-section communication-log-section">
+        <div className="work-notes-header">
+          <div>
+            <p className="eyebrow">STAKEHOLDER COMMUNICATION</p>
+            <h3>Communication Log</h3>
+          </div>
+          <span className="activity-count">
+            {communications.length}{" "}
+            {communications.length === 1 ? "update" : "updates"}
+          </span>
+        </div>
+
+        <div className="work-note-form">
+          <div className="form-group">
+            <label htmlFor="communication-type">Communication Type</label>
+            <select
+              id="communication-type"
+              value={communicationType}
+              onChange={(event) => setCommunicationType(event.target.value)}
+              disabled={addingCommunication}
+            >
+              <option value="Customer Update">Customer Update</option>
+              <option value="Internal Stakeholder Update">
+                Internal Stakeholder Update
+              </option>
+              <option value="Resolution Notice">Resolution Notice</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="communication-author">Author</label>
+            <input
+              id="communication-author"
+              value={communicationAuthor}
+              onChange={(event) => setCommunicationAuthor(event.target.value)}
+              disabled={addingCommunication}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="communication-message">Message</label>
+            <textarea
+              id="communication-message"
+              rows={3}
+              placeholder="Enter the customer or stakeholder update..."
+              value={communicationMessage}
+              onChange={(event) => setCommunicationMessage(event.target.value)}
+              disabled={addingCommunication}
+            />
+          </div>
+
+          <div className="work-note-form-actions">
+            <button
+              type="button"
+              onClick={handleAddCommunication}
+              disabled={
+                addingCommunication ||
+                !communicationAuthor.trim() ||
+                !communicationMessage.trim()
+              }
+            >
+              {addingCommunication ? "Adding..." : "Add Communication"}
+            </button>
+          </div>
+        </div>
+
+        {communicationsLoading ? (
+          <p className="activity-empty">Loading communications...</p>
+        ) : communications.length === 0 ? (
+          <p className="activity-empty">
+            No communications have been added to this incident yet.
+          </p>
+        ) : (
+          <div className="work-notes-list">
+            {communications.map((communication) => (
+              <article className="work-note-card" key={communication.id}>
+                <div className="work-note-meta">
+                  <div>
+                    <strong>{communication.author}</strong>
+                    <span className="communication-type-label">
+                      {communication.communicationType}
+                    </span>
+                  </div>
+                  <time>{formatActivityDate(communication.createdAt)}</time>
+                </div>
+                <p>{communication.message}</p>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="work-notes-section">
