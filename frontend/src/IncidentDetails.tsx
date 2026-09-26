@@ -45,6 +45,17 @@ type IncidentCommunication = {
   createdAt: string;
 };
 
+type IncidentAttachment = {
+  id: number;
+  incidentId: number;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  storagePath: string;
+  uploadedBy: string;
+  createdAt: string;
+};
+
 type IncidentDetailsProps = {
   incidentId: number;
   onClose: () => void;
@@ -103,6 +114,12 @@ function IncidentDetails({
   const [activities, setActivities] = useState<IncidentActivity[]>([]);
   const [workNotes, setWorkNotes] = useState<IncidentWorkNote[]>([]);
   const [communications, setCommunications] = useState<IncidentCommunication[]>([]);
+  const [attachments, setAttachments] = useState<IncidentAttachment[]>([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(true);
+  const [attachmentUploader, setAttachmentUploader] = useState("Kevin Jordan");
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(true);
   const [workNotesLoading, setWorkNotesLoading] = useState(true);
@@ -196,10 +213,27 @@ function IncidentDetails({
       }
     }
 
+    async function loadAttachments() {
+      try {
+        setAttachmentsLoading(true);
+        const response = await fetch(
+          `http://localhost:5286/api/incidents/${incidentId}/attachments`
+        );
+        if (!response.ok) throw new Error("Unable to load attachments.");
+        const data: IncidentAttachment[] = await response.json();
+        setAttachments(data);
+      } catch (err) {
+        console.error("Unable to load attachments:", err);
+      } finally {
+        setAttachmentsLoading(false);
+      }
+    }
+
     loadIncident();
     loadActivities();
     loadWorkNotes();
     loadCommunications();
+    loadAttachments();
   }, [incidentId]);
 
   function updateField(field: keyof Incident, value: string) {
@@ -310,6 +344,106 @@ function IncidentDetails({
     } finally {
       setAddingCommunication(false);
     }
+  }
+
+  async function handleUploadAttachment() {
+    if (!incident || !attachmentFile) return;
+
+    const uploadedBy = attachmentUploader.trim();
+    if (!uploadedBy) {
+      setError("Uploaded by is required.");
+      return;
+    }
+
+    try {
+      setUploadingAttachment(true);
+      setError("");
+
+      const formData = new FormData();
+      formData.append("file", attachmentFile);
+      formData.append("uploadedBy", uploadedBy);
+
+      const response = await fetch(
+        `http://localhost:5286/api/incidents/${incident.id}/attachments`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Unable to upload attachment.");
+      }
+
+      const created: IncidentAttachment = await response.json();
+      setAttachments((current) => [created, ...current]);
+      setAttachmentFile(null);
+
+      const fileInput = document.getElementById(
+        "incident-attachment-file"
+      ) as HTMLInputElement | null;
+      if (fileInput) fileInput.value = "";
+
+      await refreshActivities();
+      onUpdated();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to upload attachment."
+      );
+    } finally {
+      setUploadingAttachment(false);
+    }
+  }
+
+  async function handleDeleteAttachment(attachment: IncidentAttachment) {
+    if (!incident) return;
+
+    const confirmed = window.confirm(
+      `Delete attachment "${attachment.fileName}"?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeletingAttachmentId(attachment.id);
+      setError("");
+
+      const response = await fetch(
+        `http://localhost:5286/api/incidents/${incident.id}/attachments/${attachment.id}`,
+        { method: "DELETE" }
+      );
+
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Unable to delete attachment.");
+      }
+
+      setAttachments((current) =>
+        current.filter((item) => item.id !== attachment.id)
+      );
+      await refreshActivities();
+      onUpdated();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to delete attachment."
+      );
+    } finally {
+      setDeletingAttachmentId(null);
+    }
+  }
+
+  function handleDownloadAttachment(attachment: IncidentAttachment) {
+    window.open(
+      `http://localhost:5286/api/incidents/${incidentId}/attachments/${attachment.id}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
+
+  function formatFileSize(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   async function handleSave() {
@@ -430,6 +564,10 @@ function IncidentDetails({
         return "Category Changed";
       case "SubcategoryChanged":
         return "Subcategory Changed";
+      case "AttachmentAdded":
+        return "Attachment Added";
+      case "AttachmentDeleted":
+        return "Attachment Deleted";
       default:
         return activityType;
     }
@@ -658,6 +796,109 @@ function IncidentDetails({
             </strong>
           </div>
         </div>
+      </section>
+
+      <section className="work-notes-section attachment-section">
+        <div className="work-notes-header">
+          <div>
+            <p className="eyebrow">INCIDENT EVIDENCE</p>
+            <h3>Attachments</h3>
+          </div>
+          <span className="activity-count">
+            {attachments.length} {attachments.length === 1 ? "file" : "files"}
+          </span>
+        </div>
+
+        <div className="work-note-form">
+          <div className="form-group">
+            <label htmlFor="attachment-uploader">Uploaded By</label>
+            <input
+              id="attachment-uploader"
+              value={attachmentUploader}
+              onChange={(event) => setAttachmentUploader(event.target.value)}
+              disabled={uploadingAttachment}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="incident-attachment-file">Choose File</label>
+            <input
+              id="incident-attachment-file"
+              type="file"
+              accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.log,.csv,.json,.xml,.zip"
+              onChange={(event) =>
+                setAttachmentFile(event.target.files?.[0] ?? null)
+              }
+              disabled={uploadingAttachment}
+            />
+            <small>Maximum size: 10 MB</small>
+          </div>
+
+          <div className="work-note-form-actions">
+            <button
+              type="button"
+              onClick={handleUploadAttachment}
+              disabled={
+                uploadingAttachment ||
+                !attachmentFile ||
+                !attachmentUploader.trim()
+              }
+            >
+              {uploadingAttachment ? "Uploading..." : "Upload Attachment"}
+            </button>
+          </div>
+        </div>
+
+        {attachmentsLoading ? (
+          <p className="activity-empty">Loading attachments...</p>
+        ) : attachments.length === 0 ? (
+          <p className="activity-empty">
+            No attachments have been added to this incident yet.
+          </p>
+        ) : (
+          <div className="work-notes-list">
+            {attachments.map((attachment) => (
+              <article className="work-note-card" key={attachment.id}>
+                <div className="work-note-meta">
+                  <div>
+                    <strong>{attachment.fileName}</strong>
+                    <span className="communication-type-label">
+                      {formatFileSize(attachment.fileSize)}
+                    </span>
+                  </div>
+                  <time>{formatActivityDate(attachment.createdAt)}</time>
+                </div>
+
+                <p>
+                  Uploaded by {attachment.uploadedBy}
+                  {attachment.contentType
+                    ? ` • ${attachment.contentType}`
+                    : ""}
+                </p>
+
+                <div className="work-note-form-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => handleDownloadAttachment(attachment)}
+                  >
+                    Download
+                  </button>
+                  <button
+                    type="button"
+                    className="delete-button"
+                    onClick={() => handleDeleteAttachment(attachment)}
+                    disabled={deletingAttachmentId === attachment.id}
+                  >
+                    {deletingAttachmentId === attachment.id
+                      ? "Deleting..."
+                      : "Delete"}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="work-notes-section communication-log-section">

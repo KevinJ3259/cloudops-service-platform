@@ -175,8 +175,9 @@ main {
 /* Incident Filters */
 
 .incident-filters {
-  display: flex;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
   gap: 16px;
   padding: 18px 28px;
   border-bottom: 1px solid #1e293b;
@@ -187,7 +188,7 @@ main {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  min-width: 190px;
+  min-width: 0;
 }
 
 .filter-group label {
@@ -532,6 +533,12 @@ td strong {
   }
 }
 
+@media (max-width: 1100px) {
+  .incident-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 650px) {
   .topbar {
     align-items: flex-start;
@@ -556,8 +563,8 @@ td strong {
   }
 
   .incident-filters {
+    grid-template-columns: 1fr;
     align-items: stretch;
-    flex-direction: column;
   }
 
   .filter-group {
@@ -609,8 +616,7 @@ td strong {
 }
 
 .search-group {
-  flex: 1;
-  min-width: 260px;
+  min-width: 0;
 }
 
 /* Incident Activity Timeline */
