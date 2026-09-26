@@ -40,4 +40,7 @@ public class Incident
 
     public ICollection<IncidentCommunication> Communications { get; set; }
         = new List<IncidentCommunication>();
+
+    public ICollection<IncidentAttachment> Attachments { get; set; }
+        = new List<IncidentAttachment>();
 }

@@ -17,4 +17,6 @@ public class CloudOpsDbContext : DbContext
     public DbSet<IncidentWorkNote> IncidentWorkNotes { get; set; }
 
     public DbSet<IncidentCommunication> IncidentCommunications { get; set; }
+
+    public DbSet<IncidentAttachment> IncidentAttachments { get; set; }
 }
