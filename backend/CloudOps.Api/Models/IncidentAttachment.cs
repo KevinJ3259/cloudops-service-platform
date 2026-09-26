@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace CloudOps.Api.Models;
 
 public class IncidentAttachment
@@ -18,5 +20,6 @@ public class IncidentAttachment
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    [JsonIgnore]
     public Incident? Incident { get; set; }
 }

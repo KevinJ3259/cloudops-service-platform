@@ -10,10 +10,22 @@ namespace CloudOps.Api.Controllers;
 public class IncidentsController : ControllerBase
 {
     private readonly CloudOpsDbContext _context;
+    private readonly IWebHostEnvironment _environment;
+    private const long MaxAttachmentSize = 10 * 1024 * 1024;
 
-    public IncidentsController(CloudOpsDbContext context)
+    private static readonly HashSet<string> AllowedAttachmentExtensions =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".gif", ".webp",
+            ".pdf", ".txt", ".log", ".csv", ".json", ".xml", ".zip"
+        };
+
+    public IncidentsController(
+        CloudOpsDbContext context,
+        IWebHostEnvironment environment)
     {
         _context = context;
+        _environment = environment;
     }
 
     // GET: api/incidents
@@ -210,6 +222,142 @@ public class IncidentsController : ControllerBase
             new { id },
             communication
         );
+    }
+
+    // GET: api/incidents/1/attachments
+    [HttpGet("{id:int}/attachments")]
+    public async Task<ActionResult<IEnumerable<IncidentAttachment>>> GetIncidentAttachments(int id)
+    {
+        if (!await _context.Incidents.AnyAsync(i => i.Id == id))
+            return NotFound();
+
+        return Ok(await _context.IncidentAttachments
+            .Where(a => a.IncidentId == id)
+            .OrderByDescending(a => a.CreatedAt)
+            .ToListAsync());
+    }
+
+    // POST: api/incidents/1/attachments
+    [HttpPost("{id:int}/attachments")]
+    [RequestSizeLimit(MaxAttachmentSize)]
+    public async Task<ActionResult<IncidentAttachment>> UploadIncidentAttachment(
+        int id, [FromForm] IFormFile file, [FromForm] string uploadedBy)
+    {
+        if (await _context.Incidents.FindAsync(id) is null)
+            return NotFound();
+
+        if (file is null || file.Length == 0)
+            return BadRequest("A file is required.");
+
+        if (file.Length > MaxAttachmentSize)
+            return BadRequest("Attachment size cannot exceed 10 MB.");
+
+        if (string.IsNullOrWhiteSpace(uploadedBy))
+            return BadRequest("Uploaded by is required.");
+
+        var originalFileName = Path.GetFileName(file.FileName);
+        var extension = Path.GetExtension(originalFileName);
+
+        if (string.IsNullOrWhiteSpace(extension) ||
+            !AllowedAttachmentExtensions.Contains(extension))
+            return BadRequest("File type is not allowed. Allowed types: PNG, JPG, JPEG, GIF, WEBP, PDF, TXT, LOG, CSV, JSON, XML, ZIP.");
+
+        var root = Path.Combine(_environment.ContentRootPath, "uploads", "incidents", id.ToString());
+        Directory.CreateDirectory(root);
+
+        var storedFileName = $"{Guid.NewGuid():N}{extension.ToLowerInvariant()}";
+        var fullPath = Path.Combine(root, storedFileName);
+
+        try
+        {
+            await using (var stream = new FileStream(fullPath, FileMode.CreateNew))
+                await file.CopyToAsync(stream);
+
+            var attachment = new IncidentAttachment
+            {
+                IncidentId = id,
+                FileName = originalFileName,
+                ContentType = string.IsNullOrWhiteSpace(file.ContentType)
+                    ? "application/octet-stream" : file.ContentType,
+                FileSize = file.Length,
+                StoragePath = Path.Combine("uploads", "incidents", id.ToString(), storedFileName),
+                UploadedBy = uploadedBy.Trim(),
+                CreatedAt = DateTime.UtcNow,
+                Incident = null
+            };
+
+            _context.IncidentAttachments.Add(attachment);
+            _context.IncidentActivities.Add(new IncidentActivity
+            {
+                IncidentId = id,
+                ActivityType = "AttachmentAdded",
+                Description = $"Attachment added by {attachment.UploadedBy}.",
+                NewValue = attachment.FileName,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync();
+            return CreatedAtAction(nameof(GetIncidentAttachments), new { id }, attachment);
+        }
+        catch
+        {
+            if (System.IO.File.Exists(fullPath))
+                System.IO.File.Delete(fullPath);
+            throw;
+        }
+    }
+
+    // GET: api/incidents/1/attachments/2
+    [HttpGet("{id:int}/attachments/{attachmentId:int}")]
+    public async Task<IActionResult> DownloadIncidentAttachment(int id, int attachmentId)
+    {
+        var attachment = await _context.IncidentAttachments
+            .FirstOrDefaultAsync(a => a.Id == attachmentId && a.IncidentId == id);
+
+        if (attachment is null)
+            return NotFound();
+
+        var fullPath = GetAttachmentFullPath(attachment.StoragePath);
+        if (!System.IO.File.Exists(fullPath))
+            return NotFound("Attachment file was not found on the server.");
+
+        return PhysicalFile(fullPath,
+            string.IsNullOrWhiteSpace(attachment.ContentType)
+                ? "application/octet-stream" : attachment.ContentType,
+            attachment.FileName);
+    }
+
+    // DELETE: api/incidents/1/attachments/2
+    [HttpDelete("{id:int}/attachments/{attachmentId:int}")]
+    public async Task<IActionResult> DeleteIncidentAttachment(int id, int attachmentId)
+    {
+        if (!await _context.Incidents.AnyAsync(i => i.Id == id))
+            return NotFound();
+
+        var attachment = await _context.IncidentAttachments
+            .FirstOrDefaultAsync(a => a.Id == attachmentId && a.IncidentId == id);
+
+        if (attachment is null)
+            return NotFound();
+
+        var fullPath = GetAttachmentFullPath(attachment.StoragePath);
+
+        _context.IncidentAttachments.Remove(attachment);
+        _context.IncidentActivities.Add(new IncidentActivity
+        {
+            IncidentId = id,
+            ActivityType = "AttachmentDeleted",
+            Description = $"Attachment deleted: {attachment.FileName}.",
+            PreviousValue = attachment.FileName,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        if (System.IO.File.Exists(fullPath))
+            System.IO.File.Delete(fullPath);
+
+        return NoContent();
     }
 
     // POST: api/incidents
@@ -624,6 +772,22 @@ public class IncidentsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    private string GetAttachmentFullPath(string storagePath)
+    {
+        var contentRoot = Path.GetFullPath(_environment.ContentRootPath);
+        var fullPath = Path.GetFullPath(Path.Combine(contentRoot, storagePath));
+        var expectedRoot = Path.GetFullPath(
+            Path.Combine(contentRoot, "uploads", "incidents"));
+        var expectedRootWithSeparator =
+            expectedRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+
+        if (!fullPath.StartsWith(expectedRootWithSeparator, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Invalid attachment storage path.");
+
+        return fullPath;
     }
 
     private static string? NormalizeCategory(string? category)
