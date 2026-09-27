@@ -39,6 +39,79 @@ public class IncidentsController : ControllerBase
         return Ok(incidents);
     }
 
+    // GET: api/incidents/metrics
+    [HttpGet("metrics")]
+    public async Task<IActionResult> GetIncidentMetrics()
+    {
+        var incidents = await _context.Incidents
+            .AsNoTracking()
+            .ToListAsync();
+
+        var now = DateTime.UtcNow;
+
+        var resolvedIncidents = incidents
+            .Where(i => i.Status.Equals("Resolved", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var resolvedWithDuration = resolvedIncidents
+            .Where(i => i.ResolvedAt.HasValue)
+            .ToList();
+
+        var averageResolutionHours = resolvedWithDuration.Count == 0
+            ? 0
+            : Math.Round(
+                resolvedWithDuration.Average(i =>
+                    Math.Max(
+                        0,
+                        (i.ResolvedAt!.Value.ToUniversalTime() -
+                         i.CreatedAt.ToUniversalTime()).TotalHours)),
+                2);
+
+        var byCategory = incidents
+            .GroupBy(i => string.IsNullOrWhiteSpace(i.Category)
+                ? "Uncategorized"
+                : i.Category)
+            .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key)
+            .ToDictionary(group => group.Key, group => group.Count());
+
+        var bySeverity = incidents
+            .GroupBy(i => string.IsNullOrWhiteSpace(i.Severity)
+                ? "Unknown"
+                : i.Severity)
+            .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key)
+            .ToDictionary(group => group.Key, group => group.Count());
+
+        var byTeam = incidents
+            .GroupBy(i => string.IsNullOrWhiteSpace(i.AssignedTo)
+                ? "Unassigned"
+                : i.AssignedTo)
+            .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key)
+            .ToDictionary(group => group.Key, group => group.Count());
+
+        var slaBreaches = incidents.Count(i =>
+            i.SlaDueAt.HasValue &&
+            i.SlaDueAt.Value.ToUniversalTime() < now &&
+            !i.Status.Equals("Resolved", StringComparison.OrdinalIgnoreCase));
+
+        return Ok(new
+        {
+            totalIncidents = incidents.Count,
+            openIncidents = incidents.Count(i =>
+                !i.Status.Equals("Resolved", StringComparison.OrdinalIgnoreCase)),
+            resolvedIncidents = resolvedIncidents.Count,
+            criticalIncidents = incidents.Count(i =>
+                i.Severity.Equals("Critical", StringComparison.OrdinalIgnoreCase)),
+            slaBreaches,
+            averageResolutionHours,
+            byCategory,
+            bySeverity,
+            byTeam
+        });
+    }
+
     // GET: api/incidents/1
     [HttpGet("{id:int}")]
     public async Task<ActionResult<Incident>> GetIncident(int id)
