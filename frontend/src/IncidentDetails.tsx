@@ -56,6 +56,27 @@ type IncidentAttachment = {
   createdAt: string;
 };
 
+type KnowledgeArticle = {
+  id: number;
+  title: string;
+  summary: string;
+  content: string;
+  category: string;
+  status: string;
+  author: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type IncidentKnowledgeArticle = {
+  id: number;
+  incidentId: number;
+  knowledgeArticleId: number;
+  linkedAt: string;
+  linkedBy: string;
+  knowledgeArticle: KnowledgeArticle;
+};
+
 type IncidentDetailsProps = {
   incidentId: number;
   onClose: () => void;
@@ -115,6 +136,12 @@ function IncidentDetails({
   const [workNotes, setWorkNotes] = useState<IncidentWorkNote[]>([]);
   const [communications, setCommunications] = useState<IncidentCommunication[]>([]);
   const [attachments, setAttachments] = useState<IncidentAttachment[]>([]);
+  const [knowledgeArticles, setKnowledgeArticles] = useState<KnowledgeArticle[]>([]);
+  const [linkedKnowledgeArticles, setLinkedKnowledgeArticles] = useState<IncidentKnowledgeArticle[]>([]);
+  const [knowledgeArticlesLoading, setKnowledgeArticlesLoading] = useState(true);
+  const [selectedKnowledgeArticleId, setSelectedKnowledgeArticleId] = useState("");
+  const [linkingKnowledgeArticle, setLinkingKnowledgeArticle] = useState(false);
+  const [unlinkingKnowledgeArticleId, setUnlinkingKnowledgeArticleId] = useState<number | null>(null);
   const [attachmentsLoading, setAttachmentsLoading] = useState(true);
   const [attachmentUploader, setAttachmentUploader] = useState("Kevin Jordan");
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
@@ -229,11 +256,40 @@ function IncidentDetails({
       }
     }
 
+    async function loadKnowledgeArticles() {
+      try {
+        const response = await fetch("http://localhost:5286/api/knowledge-articles?status=Published");
+        if (!response.ok) throw new Error("Unable to load knowledge articles.");
+        const data: KnowledgeArticle[] = await response.json();
+        setKnowledgeArticles(data);
+      } catch (err) {
+        console.error("Unable to load knowledge articles:", err);
+      }
+    }
+
+    async function loadLinkedKnowledgeArticles() {
+      try {
+        setKnowledgeArticlesLoading(true);
+        const response = await fetch(
+          `http://localhost:5286/api/incidents/${incidentId}/knowledge-articles`
+        );
+        if (!response.ok) throw new Error("Unable to load linked knowledge articles.");
+        const data: IncidentKnowledgeArticle[] = await response.json();
+        setLinkedKnowledgeArticles(data);
+      } catch (err) {
+        console.error("Unable to load linked knowledge articles:", err);
+      } finally {
+        setKnowledgeArticlesLoading(false);
+      }
+    }
+
     loadIncident();
     loadActivities();
     loadWorkNotes();
     loadCommunications();
     loadAttachments();
+    loadKnowledgeArticles();
+    loadLinkedKnowledgeArticles();
   }, [incidentId]);
 
   function updateField(field: keyof Incident, value: string) {
@@ -446,6 +502,53 @@ function IncidentDetails({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
+  async function refreshLinkedKnowledgeArticles() {
+    const response = await fetch(
+      `http://localhost:5286/api/incidents/${incidentId}/knowledge-articles`
+    );
+    if (!response.ok) throw new Error("Unable to refresh linked knowledge articles.");
+    const data: IncidentKnowledgeArticle[] = await response.json();
+    setLinkedKnowledgeArticles(data);
+  }
+
+  async function handleLinkKnowledgeArticle() {
+    if (!incident || !selectedKnowledgeArticleId) return;
+    try {
+      setLinkingKnowledgeArticle(true);
+      setError("");
+      const response = await fetch(
+        `http://localhost:5286/api/incidents/${incident.id}/knowledge-articles/${selectedKnowledgeArticleId}`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ linkedBy: "Kevin Jordan" }) }
+      );
+      if (!response.ok) { const message = await response.text(); throw new Error(message || "Unable to link knowledge article."); }
+      setSelectedKnowledgeArticleId("");
+      await refreshLinkedKnowledgeArticles();
+      await refreshActivities();
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to link knowledge article.");
+    } finally { setLinkingKnowledgeArticle(false); }
+  }
+
+  async function handleUnlinkKnowledgeArticle(link: IncidentKnowledgeArticle) {
+    if (!incident) return;
+    if (!window.confirm(`Unlink "${link.knowledgeArticle.title}" from this incident?`)) return;
+    try {
+      setUnlinkingKnowledgeArticleId(link.knowledgeArticleId);
+      setError("");
+      const response = await fetch(
+        `http://localhost:5286/api/incidents/${incident.id}/knowledge-articles/${link.knowledgeArticleId}`,
+        { method: "DELETE" }
+      );
+      if (!response.ok) { const message = await response.text(); throw new Error(message || "Unable to unlink knowledge article."); }
+      await refreshLinkedKnowledgeArticles();
+      await refreshActivities();
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to unlink knowledge article.");
+    } finally { setUnlinkingKnowledgeArticleId(null); }
+  }
+
   async function handleSave() {
     if (!incident) return;
 
@@ -568,6 +671,10 @@ function IncidentDetails({
         return "Attachment Added";
       case "AttachmentDeleted":
         return "Attachment Deleted";
+      case "KnowledgeArticleLinked":
+        return "Knowledge Article Linked";
+      case "KnowledgeArticleUnlinked":
+        return "Knowledge Article Unlinked";
       default:
         return activityType;
     }
@@ -796,6 +903,32 @@ function IncidentDetails({
             </strong>
           </div>
         </div>
+      </section>
+
+      <section className="work-notes-section knowledge-links-section">
+        <div className="work-notes-header">
+          <div><p className="eyebrow">KNOWLEDGE MANAGEMENT</p><h3>Related Knowledge Articles</h3></div>
+          <span className="activity-count">{linkedKnowledgeArticles.length} {linkedKnowledgeArticles.length === 1 ? "article" : "articles"}</span>
+        </div>
+        <div className="work-note-form">
+          <div className="form-group">
+            <label htmlFor="knowledge-article-select">Published Article</label>
+            <select id="knowledge-article-select" value={selectedKnowledgeArticleId} onChange={(event) => setSelectedKnowledgeArticleId(event.target.value)} disabled={linkingKnowledgeArticle}>
+              <option value="">Select an article...</option>
+              {knowledgeArticles.filter((article) => !linkedKnowledgeArticles.some((link) => link.knowledgeArticleId === article.id)).map((article) => (<option key={article.id} value={article.id}>{article.title}</option>))}
+            </select>
+          </div>
+          <div className="work-note-form-actions"><button type="button" onClick={handleLinkKnowledgeArticle} disabled={linkingKnowledgeArticle || !selectedKnowledgeArticleId}>{linkingKnowledgeArticle ? "Linking..." : "Link Article"}</button></div>
+        </div>
+        {knowledgeArticlesLoading ? (<p className="activity-empty">Loading related knowledge articles...</p>) : linkedKnowledgeArticles.length === 0 ? (<p className="activity-empty">No knowledge articles are linked to this incident yet.</p>) : (
+          <div className="work-notes-list">{linkedKnowledgeArticles.map((link) => (
+            <article className="work-note-card" key={link.id}>
+              <div className="work-note-meta"><div><strong>{link.knowledgeArticle.title}</strong><span className="communication-type-label">{link.knowledgeArticle.category}</span></div><time>{formatActivityDate(link.linkedAt)}</time></div>
+              <p>{link.knowledgeArticle.summary}</p><p>Linked by {link.linkedBy} • {link.knowledgeArticle.status}</p>
+              <div className="work-note-form-actions"><button type="button" className="delete-button" onClick={() => handleUnlinkKnowledgeArticle(link)} disabled={unlinkingKnowledgeArticleId === link.knowledgeArticleId}>{unlinkingKnowledgeArticleId === link.knowledgeArticleId ? "Unlinking..." : "Unlink"}</button></div>
+            </article>
+          ))}</div>
+        )}
       </section>
 
       <section className="work-notes-section attachment-section">
