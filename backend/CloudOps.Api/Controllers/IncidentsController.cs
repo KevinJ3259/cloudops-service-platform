@@ -433,6 +433,123 @@ public class IncidentsController : ControllerBase
         return NoContent();
     }
 
+    // GET: api/incidents/1/knowledge-articles
+    [HttpGet("{id:int}/knowledge-articles")]
+    public async Task<IActionResult> GetIncidentKnowledgeArticles(int id)
+    {
+        if (!await _context.Incidents.AnyAsync(i => i.Id == id))
+            return NotFound();
+
+        var links = await _context.IncidentKnowledgeArticles
+            .AsNoTracking()
+            .Where(link => link.IncidentId == id)
+            .Include(link => link.KnowledgeArticle)
+            .OrderByDescending(link => link.LinkedAt)
+            .ToListAsync();
+
+        return Ok(links);
+    }
+
+    // POST: api/incidents/1/knowledge-articles/2
+    [HttpPost("{id:int}/knowledge-articles/{knowledgeArticleId:int}")]
+    public async Task<IActionResult> LinkKnowledgeArticle(
+        int id,
+        int knowledgeArticleId,
+        [FromBody] LinkKnowledgeArticleRequest? request)
+    {
+        if (!await _context.Incidents.AnyAsync(i => i.Id == id))
+            return NotFound("Incident was not found.");
+
+        var article = await _context.KnowledgeArticles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == knowledgeArticleId);
+
+        if (article is null)
+            return NotFound("Knowledge article was not found.");
+
+        var duplicate = await _context.IncidentKnowledgeArticles
+            .AnyAsync(link =>
+                link.IncidentId == id &&
+                link.KnowledgeArticleId == knowledgeArticleId);
+
+        if (duplicate)
+            return Conflict("This knowledge article is already linked to the incident.");
+
+        var linkedBy = string.IsNullOrWhiteSpace(request?.LinkedBy)
+            ? "Kevin Jordan"
+            : request.LinkedBy.Trim();
+
+        var link = new IncidentKnowledgeArticle
+        {
+            IncidentId = id,
+            KnowledgeArticleId = knowledgeArticleId,
+            LinkedAt = DateTime.UtcNow,
+            LinkedBy = linkedBy
+        };
+
+        _context.IncidentKnowledgeArticles.Add(link);
+        _context.IncidentActivities.Add(new IncidentActivity
+        {
+            IncidentId = id,
+            ActivityType = "KnowledgeArticleLinked",
+            Description = $"Knowledge article linked by {linkedBy}.",
+            NewValue = $"#{article.Id} {article.Title}",
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        return CreatedAtAction(
+            nameof(GetIncidentKnowledgeArticles),
+            new { id },
+            new
+            {
+                link.Id,
+                link.IncidentId,
+                link.KnowledgeArticleId,
+                link.LinkedAt,
+                link.LinkedBy,
+                KnowledgeArticle = article
+            });
+    }
+
+    // DELETE: api/incidents/1/knowledge-articles/2
+    [HttpDelete("{id:int}/knowledge-articles/{knowledgeArticleId:int}")]
+    public async Task<IActionResult> UnlinkKnowledgeArticle(int id, int knowledgeArticleId)
+    {
+        if (!await _context.Incidents.AnyAsync(i => i.Id == id))
+            return NotFound("Incident was not found.");
+
+        var link = await _context.IncidentKnowledgeArticles
+            .FirstOrDefaultAsync(item =>
+                item.IncidentId == id &&
+                item.KnowledgeArticleId == knowledgeArticleId);
+
+        if (link is null)
+            return NotFound("Knowledge article link was not found.");
+
+        var article = await _context.KnowledgeArticles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == knowledgeArticleId);
+
+        var articleLabel = article is null
+            ? $"Knowledge article #{knowledgeArticleId}"
+            : $"#{article.Id} {article.Title}";
+
+        _context.IncidentKnowledgeArticles.Remove(link);
+        _context.IncidentActivities.Add(new IncidentActivity
+        {
+            IncidentId = id,
+            ActivityType = "KnowledgeArticleUnlinked",
+            Description = "Knowledge article unlinked from incident.",
+            PreviousValue = articleLabel,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
     // POST: api/incidents
     [HttpPost]
     public async Task<ActionResult<Incident>> CreateIncident(Incident incident)
@@ -845,6 +962,11 @@ public class IncidentsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    public sealed class LinkKnowledgeArticleRequest
+    {
+        public string? LinkedBy { get; set; }
     }
 
     private string GetAttachmentFullPath(string storagePath)

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace CloudOps.Api.Models;
 
 public class KnowledgeArticle
@@ -19,4 +21,8 @@ public class KnowledgeArticle
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    [JsonIgnore]
+    public ICollection<IncidentKnowledgeArticle> Incidents { get; set; }
+        = new List<IncidentKnowledgeArticle>();
 }

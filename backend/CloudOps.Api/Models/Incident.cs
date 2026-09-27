@@ -43,4 +43,7 @@ public class Incident
 
     public ICollection<IncidentAttachment> Attachments { get; set; }
         = new List<IncidentAttachment>();
+
+    public ICollection<IncidentKnowledgeArticle> KnowledgeArticles { get; set; }
+        = new List<IncidentKnowledgeArticle>();
 }
