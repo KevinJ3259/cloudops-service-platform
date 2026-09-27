@@ -21,6 +21,18 @@ interface Incident {
   subcategory: string | null;
 }
 
+interface IncidentMetrics {
+  totalIncidents: number;
+  openIncidents: number;
+  resolvedIncidents: number;
+  criticalIncidents: number;
+  slaBreaches: number;
+  averageResolutionHours: number;
+  byCategory: Record<string, number>;
+  bySeverity: Record<string, number>;
+  byTeam: Record<string, number>;
+}
+
 type SortOption =
   | "newest"
   | "oldest"
@@ -136,6 +148,8 @@ function getSlaClassName(status: SlaStatus): string {
 
 function App() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [metrics, setMetrics] = useState<IncidentMetrics | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -181,9 +195,28 @@ function App() {
     }
   }, []);
 
+  const loadMetrics = useCallback(async () => {
+    try {
+      setMetricsLoading(true);
+      const response = await fetch(`${API_URL}/metrics`);
+
+      if (!response.ok) {
+        throw new Error("Unable to load incident metrics.");
+      }
+
+      const data: IncidentMetrics = await response.json();
+      setMetrics(data);
+    } catch (err) {
+      console.error("Unable to load incident metrics:", err);
+    } finally {
+      setMetricsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadIncidents();
-  }, [loadIncidents]);
+    void loadMetrics();
+  }, [loadIncidents, loadMetrics]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -221,7 +254,7 @@ function App() {
       });
 
       setShowForm(false);
-      await loadIncidents();
+      await Promise.all([loadIncidents(), loadMetrics()]);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Unable to create incident."
@@ -413,6 +446,34 @@ function App() {
     teamFilter !== "All" ||
     categoryFilter !== "All";
 
+  const renderMetricBars = (values: Record<string, number>) => {
+    const entries = Object.entries(values);
+    const maxValue = Math.max(...entries.map(([, value]) => value), 1);
+
+    if (entries.length === 0) {
+      return <p className="analytics-empty">No data available.</p>;
+    }
+
+    return (
+      <div className="analytics-bars">
+        {entries.map(([label, value]) => (
+          <div className="analytics-bar-row" key={label}>
+            <div className="analytics-bar-meta">
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+            <div className="analytics-bar-track">
+              <div
+                className="analytics-bar-fill"
+                style={{ width: `${(value / maxValue) * 100}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="app">
       <header className="topbar">
@@ -473,6 +534,58 @@ function App() {
               {platformStatus}
             </strong>
           </article>
+        </section>
+
+        <section className="analytics-panel">
+          <div className="analytics-heading">
+            <div>
+              <p className="eyebrow">OPERATIONS ANALYTICS</p>
+              <h2>Incident Metrics</h2>
+              <p>Live reporting from the incident management API.</p>
+            </div>
+          </div>
+
+          {metricsLoading ? (
+            <p className="analytics-empty">Loading incident metrics...</p>
+          ) : metrics ? (
+            <>
+              <div className="analytics-summary">
+                <article className="analytics-summary-card">
+                  <span>Resolved Incidents</span>
+                  <strong>{metrics.resolvedIncidents}</strong>
+                </article>
+                <article className="analytics-summary-card">
+                  <span>Average Resolution Time</span>
+                  <strong>{metrics.averageResolutionHours.toFixed(2)} hrs</strong>
+                </article>
+                <article className="analytics-summary-card">
+                  <span>SLA Breaches</span>
+                  <strong>{metrics.slaBreaches}</strong>
+                </article>
+              </div>
+
+              <div className="analytics-grid">
+                <article className="analytics-card">
+                  <h3>Incidents by Category</h3>
+                  {renderMetricBars(metrics.byCategory)}
+                </article>
+
+                <article className="analytics-card">
+                  <h3>Incidents by Severity</h3>
+                  {renderMetricBars(metrics.bySeverity)}
+                </article>
+
+                <article className="analytics-card">
+                  <h3>Incidents by Assigned Team</h3>
+                  {renderMetricBars(metrics.byTeam)}
+                </article>
+              </div>
+            </>
+          ) : (
+            <p className="analytics-empty">
+              Incident metrics are currently unavailable.
+            </p>
+          )}
         </section>
 
         <section className="incidents-panel">
@@ -818,7 +931,7 @@ function App() {
                 setSelectedIncidentId(null)
               }
               onUpdated={async () => {
-                await loadIncidents();
+                await Promise.all([loadIncidents(), loadMetrics()]);
               }}
             />
           )}
