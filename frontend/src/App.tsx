@@ -33,6 +33,14 @@ interface IncidentMetrics {
   byTeam: Record<string, number>;
 }
 
+interface KnowledgeArticle {
+  id: number; title: string; summary: string; content: string; category: string;
+  status: string; author: string; createdAt: string; updatedAt: string;
+}
+interface KnowledgeArticleForm {
+  title: string; summary: string; content: string; category: string; status: string; author: string;
+}
+
 type SortOption =
   | "newest"
   | "oldest"
@@ -55,6 +63,7 @@ interface IncidentForm {
 }
 
 const API_URL = "http://localhost:5286/api/incidents";
+const KNOWLEDGE_API_URL = "http://localhost:5286/api/knowledge-articles";
 
 function getSlaStatus(incident: Incident): SlaStatus {
   if (!incident.slaDueAt) {
@@ -164,6 +173,19 @@ function App() {
   const [sortOption, setSortOption] = useState<SortOption>("newest");
   const [selectedIncidentId, setSelectedIncidentId] =
     useState<number | null>(null);
+  const [knowledgeArticles, setKnowledgeArticles] = useState<KnowledgeArticle[]>([]);
+  const [knowledgeLoading, setKnowledgeLoading] = useState(true);
+  const [knowledgeError, setKnowledgeError] = useState("");
+  const [knowledgeSearch, setKnowledgeSearch] = useState("");
+  const [knowledgeCategoryFilter, setKnowledgeCategoryFilter] = useState("All");
+  const [knowledgeStatusFilter, setKnowledgeStatusFilter] = useState("All");
+  const [showKnowledgeForm, setShowKnowledgeForm] = useState(false);
+  const [selectedKnowledgeArticleId, setSelectedKnowledgeArticleId] = useState<number | null>(null);
+  const [editingKnowledgeArticleId, setEditingKnowledgeArticleId] = useState<number | null>(null);
+  const [knowledgeSaving, setKnowledgeSaving] = useState(false);
+  const [knowledgeForm, setKnowledgeForm] = useState<KnowledgeArticleForm>({
+    title: "", summary: "", content: "", category: "General", status: "Draft", author: "Kevin Jordan",
+  });
 
   const [form, setForm] = useState<IncidentForm>({
     title: "",
@@ -213,10 +235,20 @@ function App() {
     }
   }, []);
 
+  const loadKnowledgeArticles = useCallback(async () => {
+    try {
+      setKnowledgeLoading(true); setKnowledgeError("");
+      const response = await fetch(KNOWLEDGE_API_URL);
+      if (!response.ok) throw new Error("Unable to load knowledge articles.");
+      setKnowledgeArticles(await response.json());
+    } catch (err) {
+      setKnowledgeError(err instanceof Error ? err.message : "Unable to load knowledge articles.");
+    } finally { setKnowledgeLoading(false); }
+  }, []);
+
   useEffect(() => {
-    void loadIncidents();
-    void loadMetrics();
-  }, [loadIncidents, loadMetrics]);
+    void loadIncidents(); void loadMetrics(); void loadKnowledgeArticles();
+  }, [loadIncidents, loadMetrics, loadKnowledgeArticles]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -263,6 +295,55 @@ function App() {
       setSaving(false);
     }
   };
+
+  const resetKnowledgeForm = () => {
+    setKnowledgeForm({ title: "", summary: "", content: "", category: "General", status: "Draft", author: "Kevin Jordan" });
+    setEditingKnowledgeArticleId(null);
+  };
+
+  const handleKnowledgeSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setKnowledgeSaving(true); setKnowledgeError("");
+    try {
+      const editing = editingKnowledgeArticleId !== null;
+      const response = await fetch(editing ? `${KNOWLEDGE_API_URL}/${editingKnowledgeArticleId}` : KNOWLEDGE_API_URL, {
+        method: editing ? "PUT" : "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(knowledgeForm),
+      });
+      if (!response.ok) throw new Error(editing ? "Unable to update knowledge article." : "Unable to create knowledge article.");
+      await loadKnowledgeArticles(); resetKnowledgeForm(); setShowKnowledgeForm(false);
+    } catch (err) {
+      setKnowledgeError(err instanceof Error ? err.message : "Unable to save knowledge article.");
+    } finally { setKnowledgeSaving(false); }
+  };
+
+  const startKnowledgeEdit = (article: KnowledgeArticle) => {
+    setKnowledgeForm({ title: article.title, summary: article.summary, content: article.content, category: article.category, status: article.status, author: article.author });
+    setEditingKnowledgeArticleId(article.id); setSelectedKnowledgeArticleId(article.id); setShowKnowledgeForm(true);
+  };
+
+  const deleteKnowledgeArticle = async (article: KnowledgeArticle) => {
+    if (!window.confirm(`Delete knowledge article "${article.title}"?`)) return;
+    try {
+      setKnowledgeError("");
+      const response = await fetch(`${KNOWLEDGE_API_URL}/${article.id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Unable to delete knowledge article.");
+      if (selectedKnowledgeArticleId === article.id) setSelectedKnowledgeArticleId(null);
+      if (editingKnowledgeArticleId === article.id) { resetKnowledgeForm(); setShowKnowledgeForm(false); }
+      await loadKnowledgeArticles();
+    } catch (err) {
+      setKnowledgeError(err instanceof Error ? err.message : "Unable to delete knowledge article.");
+    }
+  };
+
+  const filteredKnowledgeArticles = knowledgeArticles.filter((article) => {
+    const s = knowledgeSearch.trim().toLowerCase();
+    const search = !s || article.title.toLowerCase().includes(s) || article.summary.toLowerCase().includes(s) || article.content.toLowerCase().includes(s) || article.author.toLowerCase().includes(s);
+    const category = knowledgeCategoryFilter === "All" || article.category.toLowerCase() === knowledgeCategoryFilter.toLowerCase();
+    const status = knowledgeStatusFilter === "All" || article.status.toLowerCase() === knowledgeStatusFilter.toLowerCase();
+    return search && category && status;
+  });
+  const knowledgeCategories = Array.from(new Set(knowledgeArticles.map((a) => a.category))).sort();
+  const selectedKnowledgeArticle = selectedKnowledgeArticleId === null ? null : knowledgeArticles.find((a) => a.id === selectedKnowledgeArticleId) ?? null;
 
   const openIncidents = incidents.filter(
     (incident) => incident.status.toLowerCase() === "open"
@@ -586,6 +667,49 @@ function App() {
               Incident metrics are currently unavailable.
             </p>
           )}
+        </section>
+
+        <section className="knowledge-panel">
+          <div className="panel-heading">
+            <div><p className="eyebrow">KNOWLEDGE MANAGEMENT</p><h2>Knowledge Base</h2></div>
+            <button type="button" onClick={() => { if (showKnowledgeForm) { resetKnowledgeForm(); setShowKnowledgeForm(false); } else { resetKnowledgeForm(); setShowKnowledgeForm(true); } }}>
+              {showKnowledgeForm ? "Cancel" : "+ New Article"}
+            </button>
+          </div>
+
+          <div className="knowledge-filters">
+            <div className="filter-group search-group"><label htmlFor="knowledgeSearch">Search</label><input id="knowledgeSearch" type="search" value={knowledgeSearch} onChange={(e) => setKnowledgeSearch(e.target.value)} placeholder="Search knowledge articles..." /></div>
+            <div className="filter-group"><label htmlFor="knowledgeCategoryFilter">Category</label><select id="knowledgeCategoryFilter" value={knowledgeCategoryFilter} onChange={(e) => setKnowledgeCategoryFilter(e.target.value)}><option value="All">All Categories</option>{knowledgeCategories.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
+            <div className="filter-group"><label htmlFor="knowledgeStatusFilter">Status</label><select id="knowledgeStatusFilter" value={knowledgeStatusFilter} onChange={(e) => setKnowledgeStatusFilter(e.target.value)}><option value="All">All Statuses</option><option value="Draft">Draft</option><option value="Published">Published</option><option value="Archived">Archived</option></select></div>
+          </div>
+
+          {showKnowledgeForm && <form className="knowledge-form" onSubmit={handleKnowledgeSubmit}>
+            <div className="form-group"><label htmlFor="knowledgeTitle">Title</label><input id="knowledgeTitle" required value={knowledgeForm.title} onChange={(e) => setKnowledgeForm({...knowledgeForm,title:e.target.value})} /></div>
+            <div className="form-group"><label htmlFor="knowledgeCategory">Category</label><input id="knowledgeCategory" value={knowledgeForm.category} onChange={(e) => setKnowledgeForm({...knowledgeForm,category:e.target.value})} /></div>
+            <div className="form-group"><label htmlFor="knowledgeStatus">Status</label><select id="knowledgeStatus" value={knowledgeForm.status} onChange={(e) => setKnowledgeForm({...knowledgeForm,status:e.target.value})}><option>Draft</option><option>Published</option><option>Archived</option></select></div>
+            <div className="form-group"><label htmlFor="knowledgeAuthor">Author</label><input id="knowledgeAuthor" value={knowledgeForm.author} onChange={(e) => setKnowledgeForm({...knowledgeForm,author:e.target.value})} /></div>
+            <div className="form-group full-width"><label htmlFor="knowledgeSummary">Summary</label><textarea id="knowledgeSummary" rows={3} value={knowledgeForm.summary} onChange={(e) => setKnowledgeForm({...knowledgeForm,summary:e.target.value})} /></div>
+            <div className="form-group full-width"><label htmlFor="knowledgeContent">Article Content</label><textarea id="knowledgeContent" rows={8} required value={knowledgeForm.content} onChange={(e) => setKnowledgeForm({...knowledgeForm,content:e.target.value})} /></div>
+            <div className="form-actions full-width"><button type="submit" disabled={knowledgeSaving}>{knowledgeSaving ? "Saving..." : editingKnowledgeArticleId !== null ? "Update Article" : "Create Article"}</button></div>
+          </form>}
+
+          {knowledgeError && <p className="error">{knowledgeError}</p>}
+          {selectedKnowledgeArticle && !showKnowledgeForm && <article className="knowledge-detail">
+            <div className="knowledge-detail-header"><div><p className="eyebrow">ARTICLE #{selectedKnowledgeArticle.id}</p><h3>{selectedKnowledgeArticle.title}</h3></div><button type="button" onClick={() => setSelectedKnowledgeArticleId(null)}>Close</button></div>
+            <div className="knowledge-meta"><span>{selectedKnowledgeArticle.category}</span><span>{selectedKnowledgeArticle.status}</span><span>By {selectedKnowledgeArticle.author || "Unknown"}</span><span>Updated {new Date(selectedKnowledgeArticle.updatedAt).toLocaleString()}</span></div>
+            {selectedKnowledgeArticle.summary && <p className="knowledge-detail-summary">{selectedKnowledgeArticle.summary}</p>}
+            <div className="knowledge-detail-content">{selectedKnowledgeArticle.content}</div>
+            <div className="knowledge-card-actions"><button type="button" onClick={() => startKnowledgeEdit(selectedKnowledgeArticle)}>Edit Article</button><button type="button" className="knowledge-delete-button" onClick={() => void deleteKnowledgeArticle(selectedKnowledgeArticle)}>Delete</button></div>
+          </article>}
+
+          {knowledgeLoading ? <p className="knowledge-empty">Loading knowledge articles...</p> : filteredKnowledgeArticles.length ? <div className="knowledge-grid">
+            {filteredKnowledgeArticles.map((article) => <article className="knowledge-card" key={article.id}>
+              <div className="knowledge-card-top"><span className="knowledge-category">{article.category}</span><span className={`knowledge-status ${article.status.toLowerCase()}`}>{article.status}</span></div>
+              <h3>{article.title}</h3><p>{article.summary || "No summary provided."}</p>
+              <div className="knowledge-card-meta"><span>By {article.author || "Unknown"}</span><span>{new Date(article.updatedAt).toLocaleDateString()}</span></div>
+              <div className="knowledge-card-actions"><button type="button" onClick={() => { setSelectedKnowledgeArticleId(article.id); setShowKnowledgeForm(false); }}>View</button><button type="button" onClick={() => startKnowledgeEdit(article)}>Edit</button><button type="button" className="knowledge-delete-button" onClick={() => void deleteKnowledgeArticle(article)}>Delete</button></div>
+            </article>)}
+          </div> : <p className="knowledge-empty">No knowledge articles match your search or filters.</p>}
         </section>
 
         <section className="incidents-panel">
