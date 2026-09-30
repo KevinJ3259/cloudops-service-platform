@@ -20,6 +20,16 @@ public class Incident
 
     public string? ResolutionNotes { get; set; }
 
+    public string? RootCause { get; set; }
+
+    public string? ResolutionSummary { get; set; }
+
+    public string? PreventiveAction { get; set; }
+
+    public string? ResolvedBy { get; set; }
+
+    public DateTime? PostIncidentReviewCompletedAt { get; set; }
+
     public string Priority { get; set; } = "P3 - Medium";
 
     public DateTime? SlaDueAt { get; set; }
