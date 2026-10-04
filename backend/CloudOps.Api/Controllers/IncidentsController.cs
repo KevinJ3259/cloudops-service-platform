@@ -760,6 +760,148 @@ public class IncidentsController : ControllerBase
         return NoContent();
     }
 
+    // GET: api/incidents/1/post-incident-review
+    [HttpGet("{id:int}/post-incident-review")]
+    public async Task<IActionResult> GetPostIncidentReview(int id)
+    {
+        var incident = await _context.Incidents
+            .AsNoTracking()
+            .FirstOrDefaultAsync(i => i.Id == id);
+
+        if (incident is null)
+        {
+            return NotFound("Incident was not found.");
+        }
+
+        return Ok(new
+        {
+            incident.Id,
+            incident.RootCause,
+            incident.ResolutionSummary,
+            incident.PreventiveAction,
+            incident.ResolvedBy,
+            incident.PostIncidentReviewCompletedAt
+        });
+    }
+
+
+    // PUT: api/incidents/1/post-incident-review
+    [HttpPut("{id:int}/post-incident-review")]
+    public async Task<IActionResult> UpdatePostIncidentReview(
+        int id,
+        [FromBody] PostIncidentReviewRequest request)
+    {
+        var incident = await _context.Incidents.FindAsync(id);
+
+        if (incident is null)
+        {
+            return NotFound("Incident was not found.");
+        }
+
+        var rootCause = NormalizeOptionalText(request.RootCause);
+        var resolutionSummary = NormalizeOptionalText(request.ResolutionSummary);
+        var preventiveAction = NormalizeOptionalText(request.PreventiveAction);
+        var resolvedBy = NormalizeOptionalText(request.ResolvedBy);
+
+        if (string.IsNullOrWhiteSpace(resolvedBy))
+        {
+            return BadRequest("Resolved by is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(resolutionSummary))
+        {
+            return BadRequest("Resolution summary is required.");
+        }
+
+        var activities = new List<IncidentActivity>();
+
+        AddActivityIfChanged(
+            activities,
+            id,
+            "RootCauseChanged",
+            "Incident root cause updated.",
+            incident.RootCause,
+            rootCause
+        );
+
+        AddActivityIfChanged(
+            activities,
+            id,
+            "ResolutionSummaryChanged",
+            "Incident resolution summary updated.",
+            incident.ResolutionSummary,
+            resolutionSummary
+        );
+
+        AddActivityIfChanged(
+            activities,
+            id,
+            "PreventiveActionChanged",
+            "Incident preventive action updated.",
+            incident.PreventiveAction,
+            preventiveAction
+        );
+
+        AddActivityIfChanged(
+            activities,
+            id,
+            "ResolvedByChanged",
+            "Incident resolver updated.",
+            incident.ResolvedBy,
+            resolvedBy
+        );
+
+        var reviewWasPreviouslyIncomplete =
+            !incident.PostIncidentReviewCompletedAt.HasValue;
+
+        incident.RootCause = rootCause;
+        incident.ResolutionSummary = resolutionSummary;
+        incident.PreventiveAction = preventiveAction;
+        incident.ResolvedBy = resolvedBy;
+
+        incident.PostIncidentReviewCompletedAt = DateTime.UtcNow;
+
+        if (reviewWasPreviouslyIncomplete)
+        {
+            activities.Add(new IncidentActivity
+            {
+                IncidentId = id,
+                ActivityType = "PostIncidentReviewCompleted",
+                Description = $"Post-incident review completed by {resolvedBy}.",
+                NewValue = FormatDateTime(incident.PostIncidentReviewCompletedAt),
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+        else
+        {
+            activities.Add(new IncidentActivity
+            {
+                IncidentId = id,
+                ActivityType = "PostIncidentReviewUpdated",
+                Description = $"Post-incident review updated by {resolvedBy}.",
+                NewValue = FormatDateTime(incident.PostIncidentReviewCompletedAt),
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        if (activities.Count > 0)
+        {
+            _context.IncidentActivities.AddRange(activities);
+        }
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            incident.Id,
+            incident.RootCause,
+            incident.ResolutionSummary,
+            incident.PreventiveAction,
+            incident.ResolvedBy,
+            incident.PostIncidentReviewCompletedAt
+        });
+    }
+
     // POST: api/incidents/apply-automatic-escalations
     // Evaluates unresolved incidents and escalates them based on SLA state.
     [HttpPost("apply-automatic-escalations")]
@@ -969,6 +1111,14 @@ public class IncidentsController : ControllerBase
         public string? LinkedBy { get; set; }
     }
 
+    public sealed class PostIncidentReviewRequest
+    {
+        public string? RootCause { get; set; }
+        public string? ResolutionSummary { get; set; }
+        public string? PreventiveAction { get; set; }
+        public string? ResolvedBy { get; set; }
+    }
+
     private string GetAttachmentFullPath(string storagePath)
     {
         var contentRoot = Path.GetFullPath(_environment.ContentRootPath);
@@ -1006,6 +1156,14 @@ public class IncidentsController : ControllerBase
     {
         var value = subcategory?.Trim();
         return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static string? NormalizeOptionalText(string? value)
+    {
+        var normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized)
+        ? null
+        : normalized;
     }
 
 
