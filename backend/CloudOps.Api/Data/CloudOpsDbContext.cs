@@ -1,3 +1,4 @@
+
 using CloudOps.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,7 +24,9 @@ public class CloudOpsDbContext : DbContext
     public DbSet<KnowledgeArticle> KnowledgeArticles => Set<KnowledgeArticle>();
 
     public DbSet<IncidentKnowledgeArticle> IncidentKnowledgeArticles =>
-    Set<IncidentKnowledgeArticle>();
+        Set<IncidentKnowledgeArticle>();
+
+    public DbSet<Problem> Problems => Set<Problem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
