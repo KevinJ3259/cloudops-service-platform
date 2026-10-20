@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-
 type Incident = {
   id: number;
   title: string;
@@ -17,7 +16,14 @@ type Incident = {
   category: string;
   subcategory: string | null;
 };
-
+type PostIncidentReview = {
+  id: number;
+  rootCause: string | null;
+  resolutionSummary: string | null;
+  preventiveAction: string | null;
+  resolvedBy: string | null;
+  postIncidentReviewCompletedAt: string | null;
+};
 type IncidentActivity = {
   id: number;
   incidentId: number;
@@ -27,7 +33,6 @@ type IncidentActivity = {
   newValue: string | null;
   createdAt: string;
 };
-
 type IncidentWorkNote = {
   id: number;
   incidentId: number;
@@ -35,7 +40,6 @@ type IncidentWorkNote = {
   note: string;
   createdAt: string;
 };
-
 type IncidentCommunication = {
   id: number;
   incidentId: number;
@@ -44,7 +48,6 @@ type IncidentCommunication = {
   communicationType: string;
   createdAt: string;
 };
-
 type IncidentAttachment = {
   id: number;
   incidentId: number;
@@ -55,7 +58,6 @@ type IncidentAttachment = {
   uploadedBy: string;
   createdAt: string;
 };
-
 type KnowledgeArticle = {
   id: number;
   title: string;
@@ -67,7 +69,6 @@ type KnowledgeArticle = {
   createdAt: string;
   updatedAt: string;
 };
-
 type IncidentKnowledgeArticle = {
   id: number;
   incidentId: number;
@@ -76,15 +77,12 @@ type IncidentKnowledgeArticle = {
   linkedBy: string;
   knowledgeArticle: KnowledgeArticle;
 };
-
 type IncidentDetailsProps = {
   incidentId: number;
   onClose: () => void;
   onUpdated: () => void;
 };
-
 type SlaStatus = "On Track" | "At Risk" | "Breached" | "Met" | "Not Set";
-
 function getSlaStatus(incident: Incident): SlaStatus {
   if (!incident.slaDueAt) return "Not Set";
   const dueTime = new Date(incident.slaDueAt).getTime();
@@ -98,7 +96,6 @@ function getSlaStatus(incident: Incident): SlaStatus {
   const percentRemaining = totalSla > 0 ? remaining / totalSla : 0;
   return percentRemaining <= 0.25 ? "At Risk" : "On Track";
 }
-
 function getSlaTimeText(incident: Incident): string {
   if (!incident.slaDueAt) return "No SLA deadline";
   const dueTime = new Date(incident.slaDueAt).getTime();
@@ -115,7 +112,6 @@ function getSlaTimeText(incident: Incident): string {
   }
   return difference >= 0 ? `${value} remaining` : `${value} overdue`;
 }
-
 function getSlaClassName(status: SlaStatus): string {
   switch (status) {
     case "Met": return "sla-met";
@@ -125,7 +121,6 @@ function getSlaClassName(status: SlaStatus): string {
     default: return "sla-not-set";
   }
 }
-
 function IncidentDetails({
   incidentId,
   onClose,
@@ -138,6 +133,9 @@ function IncidentDetails({
   const [attachments, setAttachments] = useState<IncidentAttachment[]>([]);
   const [knowledgeArticles, setKnowledgeArticles] = useState<KnowledgeArticle[]>([]);
   const [linkedKnowledgeArticles, setLinkedKnowledgeArticles] = useState<IncidentKnowledgeArticle[]>([]);
+  const [postIncidentReview, setPostIncidentReview] = useState<PostIncidentReview | null>(null);
+  const [postIncidentReviewLoading, setPostIncidentReviewLoading] = useState(true);
+  const [savingPostIncidentReview, setSavingPostIncidentReview] = useState(false);
   const [knowledgeArticlesLoading, setKnowledgeArticlesLoading] = useState(true);
   const [selectedKnowledgeArticleId, setSelectedKnowledgeArticleId] = useState("");
   const [linkingKnowledgeArticle, setLinkingKnowledgeArticle] = useState(false);
@@ -161,21 +159,17 @@ function IncidentDetails({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
-
   useEffect(() => {
     async function loadIncident() {
       try {
         setLoading(true);
         setError("");
-
         const response = await fetch(
           `http://localhost:5286/api/incidents/${incidentId}`
         );
-
         if (!response.ok) {
           throw new Error("Unable to load incident.");
         }
-
         const data: Incident = await response.json();
         setIncident(data);
       } catch (err) {
@@ -186,19 +180,15 @@ function IncidentDetails({
         setLoading(false);
       }
     }
-
     async function loadActivities() {
       try {
         setActivityLoading(true);
-
         const response = await fetch(
           `http://localhost:5286/api/incidents/${incidentId}/activities`
         );
-
         if (!response.ok) {
           throw new Error("Unable to load incident activity.");
         }
-
         const data: IncidentActivity[] = await response.json();
         setActivities(data);
       } catch (err) {
@@ -207,7 +197,6 @@ function IncidentDetails({
         setActivityLoading(false);
       }
     }
-
     async function loadWorkNotes() {
       try {
         setWorkNotesLoading(true);
@@ -223,7 +212,6 @@ function IncidentDetails({
         setWorkNotesLoading(false);
       }
     }
-
     async function loadCommunications() {
       try {
         setCommunicationsLoading(true);
@@ -239,7 +227,6 @@ function IncidentDetails({
         setCommunicationsLoading(false);
       }
     }
-
     async function loadAttachments() {
       try {
         setAttachmentsLoading(true);
@@ -255,7 +242,21 @@ function IncidentDetails({
         setAttachmentsLoading(false);
       }
     }
-
+    async function loadPostIncidentReview() {
+      try {
+        setPostIncidentReviewLoading(true);
+        const response = await fetch(
+          `http://localhost:5286/api/incidents/${incidentId}/post-incident-review`
+        );
+        if (!response.ok) throw new Error("Unable to load post-incident review.");
+        const data: PostIncidentReview = await response.json();
+        setPostIncidentReview(data);
+      } catch (err) {
+        console.error("Unable to load post-incident review:", err);
+      } finally {
+        setPostIncidentReviewLoading(false);
+      }
+    }
     async function loadKnowledgeArticles() {
       try {
         const response = await fetch("http://localhost:5286/api/knowledge-articles?status=Published");
@@ -266,7 +267,6 @@ function IncidentDetails({
         console.error("Unable to load knowledge articles:", err);
       }
     }
-
     async function loadLinkedKnowledgeArticles() {
       try {
         setKnowledgeArticlesLoading(true);
@@ -282,25 +282,22 @@ function IncidentDetails({
         setKnowledgeArticlesLoading(false);
       }
     }
-
     loadIncident();
     loadActivities();
     loadWorkNotes();
     loadCommunications();
     loadAttachments();
+    loadPostIncidentReview();
     loadKnowledgeArticles();
     loadLinkedKnowledgeArticles();
   }, [incidentId]);
-
   function updateField(field: keyof Incident, value: string) {
     if (!incident) return;
-
     setIncident({
       ...incident,
       [field]: value,
     });
   }
-
   async function refreshActivities() {
     try {
       const response = await fetch(
@@ -313,22 +310,17 @@ function IncidentDetails({
       console.error("Unable to refresh incident activity:", err);
     }
   }
-
   async function handleAddWorkNote() {
     if (!incident) return;
-
     const author = workNoteAuthor.trim();
     const note = workNoteText.trim();
-
     if (!author || !note) {
       setError("Author and work note are required.");
       return;
     }
-
     try {
       setAddingWorkNote(true);
       setError("");
-
       const response = await fetch(
         `http://localhost:5286/api/incidents/${incident.id}/worknotes`,
         {
@@ -337,12 +329,10 @@ function IncidentDetails({
           body: JSON.stringify({ author, note }),
         }
       );
-
       if (!response.ok) {
         const message = await response.text();
         throw new Error(message || "Unable to add work note.");
       }
-
       const createdNote: IncidentWorkNote = await response.json();
       setWorkNotes((current) => [createdNote, ...current]);
       setWorkNoteText("");
@@ -354,22 +344,17 @@ function IncidentDetails({
       setAddingWorkNote(false);
     }
   }
-
   async function handleAddCommunication() {
     if (!incident) return;
-
     const author = communicationAuthor.trim();
     const message = communicationMessage.trim();
-
     if (!author || !message) {
       setError("Author and communication message are required.");
       return;
     }
-
     try {
       setAddingCommunication(true);
       setError("");
-
       const response = await fetch(
         `http://localhost:5286/api/incidents/${incident.id}/communications`,
         {
@@ -382,12 +367,10 @@ function IncidentDetails({
           }),
         }
       );
-
       if (!response.ok) {
         const responseMessage = await response.text();
         throw new Error(responseMessage || "Unable to add communication.");
       }
-
       const createdCommunication: IncidentCommunication = await response.json();
       setCommunications((current) => [createdCommunication, ...current]);
       setCommunicationMessage("");
@@ -401,24 +384,19 @@ function IncidentDetails({
       setAddingCommunication(false);
     }
   }
-
   async function handleUploadAttachment() {
     if (!incident || !attachmentFile) return;
-
     const uploadedBy = attachmentUploader.trim();
     if (!uploadedBy) {
       setError("Uploaded by is required.");
       return;
     }
-
     try {
       setUploadingAttachment(true);
       setError("");
-
       const formData = new FormData();
       formData.append("file", attachmentFile);
       formData.append("uploadedBy", uploadedBy);
-
       const response = await fetch(
         `http://localhost:5286/api/incidents/${incident.id}/attachments`,
         {
@@ -426,21 +404,17 @@ function IncidentDetails({
           body: formData,
         }
       );
-
       if (!response.ok) {
         const message = await response.text();
         throw new Error(message || "Unable to upload attachment.");
       }
-
       const created: IncidentAttachment = await response.json();
       setAttachments((current) => [created, ...current]);
       setAttachmentFile(null);
-
       const fileInput = document.getElementById(
         "incident-attachment-file"
       ) as HTMLInputElement | null;
       if (fileInput) fileInput.value = "";
-
       await refreshActivities();
       onUpdated();
     } catch (err) {
@@ -451,29 +425,23 @@ function IncidentDetails({
       setUploadingAttachment(false);
     }
   }
-
   async function handleDeleteAttachment(attachment: IncidentAttachment) {
     if (!incident) return;
-
     const confirmed = window.confirm(
       `Delete attachment "${attachment.fileName}"?`
     );
     if (!confirmed) return;
-
     try {
       setDeletingAttachmentId(attachment.id);
       setError("");
-
       const response = await fetch(
         `http://localhost:5286/api/incidents/${incident.id}/attachments/${attachment.id}`,
         { method: "DELETE" }
       );
-
       if (!response.ok) {
         const message = await response.text();
         throw new Error(message || "Unable to delete attachment.");
       }
-
       setAttachments((current) =>
         current.filter((item) => item.id !== attachment.id)
       );
@@ -487,7 +455,6 @@ function IncidentDetails({
       setDeletingAttachmentId(null);
     }
   }
-
   function handleDownloadAttachment(attachment: IncidentAttachment) {
     window.open(
       `http://localhost:5286/api/incidents/${incidentId}/attachments/${attachment.id}`,
@@ -495,13 +462,11 @@ function IncidentDetails({
       "noopener,noreferrer"
     );
   }
-
   function formatFileSize(bytes: number) {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
-
   async function refreshLinkedKnowledgeArticles() {
     const response = await fetch(
       `http://localhost:5286/api/incidents/${incidentId}/knowledge-articles`
@@ -510,7 +475,6 @@ function IncidentDetails({
     const data: IncidentKnowledgeArticle[] = await response.json();
     setLinkedKnowledgeArticles(data);
   }
-
   async function handleLinkKnowledgeArticle() {
     if (!incident || !selectedKnowledgeArticleId) return;
     try {
@@ -529,7 +493,6 @@ function IncidentDetails({
       setError(err instanceof Error ? err.message : "Unable to link knowledge article.");
     } finally { setLinkingKnowledgeArticle(false); }
   }
-
   async function handleUnlinkKnowledgeArticle(link: IncidentKnowledgeArticle) {
     if (!incident) return;
     if (!window.confirm(`Unlink "${link.knowledgeArticle.title}" from this incident?`)) return;
@@ -548,19 +511,65 @@ function IncidentDetails({
       setError(err instanceof Error ? err.message : "Unable to unlink knowledge article.");
     } finally { setUnlinkingKnowledgeArticleId(null); }
   }
-
+  function updatePostIncidentReviewField(
+    field: "rootCause" | "resolutionSummary" | "preventiveAction" | "resolvedBy",
+    value: string
+  ) {
+    if (!postIncidentReview) return;
+    setPostIncidentReview({
+      ...postIncidentReview,
+      [field]: value,
+    });
+  }
+  async function handleSavePostIncidentReview() {
+    if (!incident || !postIncidentReview) return;
+    const resolutionSummary = postIncidentReview.resolutionSummary?.trim() ?? "";
+    const resolvedBy = postIncidentReview.resolvedBy?.trim() ?? "";
+    if (!resolutionSummary || !resolvedBy) {
+      setError("Resolution Summary and Resolved By are required.");
+      return;
+    }
+    try {
+      setSavingPostIncidentReview(true);
+      setError("");
+      const response = await fetch(
+        `http://localhost:5286/api/incidents/${incident.id}/post-incident-review`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rootCause: postIncidentReview.rootCause,
+            resolutionSummary,
+            preventiveAction: postIncidentReview.preventiveAction,
+            resolvedBy,
+          }),
+        }
+      );
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Unable to save post-incident review.");
+      }
+      const updatedReview: PostIncidentReview = await response.json();
+      setPostIncidentReview(updatedReview);
+      await refreshActivities();
+      onUpdated();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to save post-incident review."
+      );
+    } finally {
+      setSavingPostIncidentReview(false);
+    }
+  }
   async function handleSave() {
     if (!incident) return;
-
     try {
       setSaving(true);
       setError("");
-
       const resolvedAt =
         incident.status === "Resolved"
           ? incident.resolvedAt ?? new Date().toISOString()
           : null;
-
       const response = await fetch(
         `http://localhost:5286/api/incidents/${incident.id}`,
         {
@@ -582,11 +591,9 @@ function IncidentDetails({
           }),
         }
       );
-
       if (!response.ok) {
         throw new Error("Unable to update incident.");
       }
-
       onUpdated();
       onClose();
     } catch (err) {
@@ -597,33 +604,26 @@ function IncidentDetails({
       setSaving(false);
     }
   }
-
   async function handleDelete() {
     if (!incident) return;
-
     const confirmed = window.confirm(
       `Are you sure you want to delete Incident #${incident.id} - ${incident.title}?`
     );
-
     if (!confirmed) {
       return;
     }
-
     try {
       setDeleting(true);
       setError("");
-
       const response = await fetch(
         `http://localhost:5286/api/incidents/${incident.id}`,
         {
           method: "DELETE",
         }
       );
-
       if (!response.ok) {
         throw new Error("Unable to delete incident.");
       }
-
       onUpdated();
       onClose();
     } catch (err) {
@@ -634,7 +634,6 @@ function IncidentDetails({
       setDeleting(false);
     }
   }
-
   function formatActivityType(activityType: string) {
     switch (activityType) {
       case "IncidentCreated":
@@ -675,15 +674,25 @@ function IncidentDetails({
         return "Knowledge Article Linked";
       case "KnowledgeArticleUnlinked":
         return "Knowledge Article Unlinked";
+      case "RootCauseChanged":
+        return "Root Cause Updated";
+      case "ResolutionSummaryChanged":
+        return "Resolution Summary Updated";
+      case "PreventiveActionChanged":
+        return "Preventive Action Updated";
+      case "ResolvedByChanged":
+        return "Resolved By Updated";
+      case "PostIncidentReviewCompleted":
+        return "Post-Incident Review Completed";
+      case "PostIncidentReviewUpdated":
+        return "Post-Incident Review Updated";
       default:
         return activityType;
     }
   }
-
   function formatActivityDate(date: string) {
     return new Date(date).toLocaleString();
   }
-
   if (loading) {
     return (
       <div className="incident-details">
@@ -691,7 +700,6 @@ function IncidentDetails({
       </div>
     );
   }
-
   if (error && !incident) {
     return (
       <div className="incident-details">
@@ -702,13 +710,10 @@ function IncidentDetails({
       </div>
     );
   }
-
   if (!incident) {
     return null;
   }
-
   const slaStatus = getSlaStatus(incident);
-
   return (
     <div className="incident-details">
       <div className="details-heading">
@@ -716,7 +721,6 @@ function IncidentDetails({
           <p className="eyebrow">INCIDENT #{incident.id}</p>
           <h2>{incident.title}</h2>
         </div>
-
         <button
           type="button"
           className="secondary-button"
@@ -725,9 +729,7 @@ function IncidentDetails({
           Close
         </button>
       </div>
-
       {error && <p className="error">{error}</p>}
-
       <div className="details-grid">
         <div className="form-group full-width">
           <label htmlFor="details-title">Incident Title</label>
@@ -739,7 +741,6 @@ function IncidentDetails({
             }
           />
         </div>
-
         <div className="form-group">
           <label htmlFor="details-severity">Severity</label>
           <select
@@ -755,7 +756,6 @@ function IncidentDetails({
             <option value="Critical">Critical</option>
           </select>
         </div>
-
         <div className="form-group">
           <label htmlFor="details-status">Status</label>
           <select
@@ -770,7 +770,6 @@ function IncidentDetails({
             <option value="Resolved">Resolved</option>
           </select>
         </div>
-
         <div className="form-group full-width">
           <label htmlFor="details-description">Description</label>
           <textarea
@@ -782,7 +781,6 @@ function IncidentDetails({
             }
           />
         </div>
-
         <div className="form-group full-width">
           <label htmlFor="details-assigned">Assigned Team</label>
           <select
@@ -802,7 +800,6 @@ function IncidentDetails({
             <option value="Security Operations">Security Operations</option>
           </select>
         </div>
-
         <div className="form-group">
           <label htmlFor="details-category">Category</label>
           <select
@@ -822,7 +819,6 @@ function IncidentDetails({
             <option value="Other">Other</option>
           </select>
         </div>
-
         <div className="form-group">
           <label htmlFor="details-subcategory">Subcategory</label>
           <input
@@ -834,7 +830,6 @@ function IncidentDetails({
             placeholder="Example: API Services"
           />
         </div>
-
         <div className="form-group full-width">
           <label htmlFor="details-escalation">Escalation Level</label>
           <select
@@ -849,7 +844,6 @@ function IncidentDetails({
             <option value="Cloud Operations">Cloud Operations</option>
           </select>
         </div>
-
         <div className="form-group full-width">
           <label htmlFor="details-resolution">Resolution Notes</label>
           <textarea
@@ -863,7 +857,6 @@ function IncidentDetails({
           />
         </div>
       </div>
-
       <section className="sla-details-section">
         <div className="sla-details-header">
           <div>
@@ -879,7 +872,6 @@ function IncidentDetails({
           <div className="sla-detail-card"><span>SLA Deadline</span><strong>{incident.slaDueAt ? new Date(incident.slaDueAt).toLocaleString() : "Not Set"}</strong></div>
         </div>
       </section>
-
       <section className="escalation-details-section">
         <div className="sla-details-header">
           <div>
@@ -887,13 +879,11 @@ function IncidentDetails({
             <h3>Escalation Tracking</h3>
           </div>
         </div>
-
         <div className="sla-details-grid">
           <div className="sla-detail-card">
             <span>Current Level</span>
             <strong>{incident.escalationLevel || "L1 Support"}</strong>
           </div>
-
           <div className="sla-detail-card">
             <span>Last Escalated</span>
             <strong>
@@ -904,7 +894,116 @@ function IncidentDetails({
           </div>
         </div>
       </section>
-
+      <section className="work-notes-section post-incident-review-section">
+        <div className="work-notes-header">
+          <div>
+            <p className="eyebrow">INCIDENT RESOLUTION</p>
+            <h3>Post-Incident Review</h3>
+          </div>
+          <span className="activity-count">
+            {postIncidentReview?.postIncidentReviewCompletedAt ? "Completed" : "Not completed"}
+          </span>
+        </div>
+        {postIncidentReviewLoading ? (
+          <p className="activity-empty">Loading post-incident review...</p>
+        ) : !postIncidentReview ? (
+          <p className="activity-empty">Unable to load the post-incident review.</p>
+        ) : (
+          <div className="work-note-form">
+            <div className="form-group">
+              <label htmlFor="post-review-resolved-by">Resolved By</label>
+              <input
+                id="post-review-resolved-by"
+                value={postIncidentReview.resolvedBy ?? ""}
+                onChange={(event) =>
+                  updatePostIncidentReviewField("resolvedBy", event.target.value)
+                }
+                disabled={savingPostIncidentReview}
+                placeholder="Resolver name"
+              />
+            </div>
+            <div className="form-group">
+              <label>Review Completed</label>
+              <input
+                value={
+                  postIncidentReview.postIncidentReviewCompletedAt
+                    ? new Date(
+                        postIncidentReview.postIncidentReviewCompletedAt
+                      ).toLocaleString()
+                    : "Not completed"
+                }
+                readOnly
+              />
+            </div>
+            <div className="form-group full-width">
+              <label htmlFor="post-review-root-cause">Root Cause</label>
+              <textarea
+                id="post-review-root-cause"
+                rows={3}
+                value={postIncidentReview.rootCause ?? ""}
+                onChange={(event) =>
+                  updatePostIncidentReviewField("rootCause", event.target.value)
+                }
+                disabled={savingPostIncidentReview}
+                placeholder="Describe the underlying cause of the incident..."
+              />
+            </div>
+            <div className="form-group full-width">
+              <label htmlFor="post-review-resolution-summary">
+                Resolution Summary
+              </label>
+              <textarea
+                id="post-review-resolution-summary"
+                rows={3}
+                value={postIncidentReview.resolutionSummary ?? ""}
+                onChange={(event) =>
+                  updatePostIncidentReviewField(
+                    "resolutionSummary",
+                    event.target.value
+                  )
+                }
+                disabled={savingPostIncidentReview}
+                placeholder="Summarize how the incident was resolved..."
+              />
+            </div>
+            <div className="form-group full-width">
+              <label htmlFor="post-review-preventive-action">
+                Preventive Action
+              </label>
+              <textarea
+                id="post-review-preventive-action"
+                rows={3}
+                value={postIncidentReview.preventiveAction ?? ""}
+                onChange={(event) =>
+                  updatePostIncidentReviewField(
+                    "preventiveAction",
+                    event.target.value
+                  )
+                }
+                disabled={savingPostIncidentReview}
+                placeholder="Describe actions that will help prevent recurrence..."
+              />
+            </div>
+            <div className="work-note-form-actions">
+              <button
+                type="button"
+                onClick={handleSavePostIncidentReview}
+                disabled={
+                  savingPostIncidentReview ||
+                  !(postIncidentReview.resolutionSummary ?? "").trim() ||
+                  !(postIncidentReview.resolvedBy ?? "").trim()
+                }
+              >
+                {savingPostIncidentReview
+                  ? "Saving Review..."
+                  : postIncidentReview.postIncidentReviewCompletedAt
+                    ? "Update Review"
+                    : "Complete Review"}
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
       <section className="work-notes-section knowledge-links-section">
         <div className="work-notes-header">
           <div><p className="eyebrow">KNOWLEDGE MANAGEMENT</p><h3>Related Knowledge Articles</h3></div>
@@ -930,7 +1029,6 @@ function IncidentDetails({
           ))}</div>
         )}
       </section>
-
       <section className="work-notes-section attachment-section">
         <div className="work-notes-header">
           <div>
@@ -941,7 +1039,6 @@ function IncidentDetails({
             {attachments.length} {attachments.length === 1 ? "file" : "files"}
           </span>
         </div>
-
         <div className="work-note-form">
           <div className="form-group">
             <label htmlFor="attachment-uploader">Uploaded By</label>
@@ -952,7 +1049,6 @@ function IncidentDetails({
               disabled={uploadingAttachment}
             />
           </div>
-
           <div className="form-group">
             <label htmlFor="incident-attachment-file">Choose File</label>
             <input
@@ -966,7 +1062,6 @@ function IncidentDetails({
             />
             <small>Maximum size: 10 MB</small>
           </div>
-
           <div className="work-note-form-actions">
             <button
               type="button"
@@ -981,7 +1076,6 @@ function IncidentDetails({
             </button>
           </div>
         </div>
-
         {attachmentsLoading ? (
           <p className="activity-empty">Loading attachments...</p>
         ) : attachments.length === 0 ? (
@@ -1001,14 +1095,12 @@ function IncidentDetails({
                   </div>
                   <time>{formatActivityDate(attachment.createdAt)}</time>
                 </div>
-
                 <p>
                   Uploaded by {attachment.uploadedBy}
                   {attachment.contentType
                     ? ` • ${attachment.contentType}`
                     : ""}
                 </p>
-
                 <div className="work-note-form-actions">
                   <button
                     type="button"
@@ -1033,7 +1125,6 @@ function IncidentDetails({
           </div>
         )}
       </section>
-
       <section className="work-notes-section communication-log-section">
         <div className="work-notes-header">
           <div>
@@ -1045,7 +1136,6 @@ function IncidentDetails({
             {communications.length === 1 ? "update" : "updates"}
           </span>
         </div>
-
         <div className="work-note-form">
           <div className="form-group">
             <label htmlFor="communication-type">Communication Type</label>
@@ -1062,7 +1152,6 @@ function IncidentDetails({
               <option value="Resolution Notice">Resolution Notice</option>
             </select>
           </div>
-
           <div className="form-group">
             <label htmlFor="communication-author">Author</label>
             <input
@@ -1072,7 +1161,6 @@ function IncidentDetails({
               disabled={addingCommunication}
             />
           </div>
-
           <div className="form-group">
             <label htmlFor="communication-message">Message</label>
             <textarea
@@ -1084,7 +1172,6 @@ function IncidentDetails({
               disabled={addingCommunication}
             />
           </div>
-
           <div className="work-note-form-actions">
             <button
               type="button"
@@ -1099,7 +1186,6 @@ function IncidentDetails({
             </button>
           </div>
         </div>
-
         {communicationsLoading ? (
           <p className="activity-empty">Loading communications...</p>
         ) : communications.length === 0 ? (
@@ -1125,7 +1211,6 @@ function IncidentDetails({
           </div>
         )}
       </section>
-
       <section className="work-notes-section">
         <div className="work-notes-header">
           <div>
@@ -1136,7 +1221,6 @@ function IncidentDetails({
             {workNotes.length} {workNotes.length === 1 ? "note" : "notes"}
           </span>
         </div>
-
         <div className="work-note-form">
           <div className="form-group">
             <label htmlFor="work-note-author">Author</label>
@@ -1147,7 +1231,6 @@ function IncidentDetails({
               disabled={addingWorkNote}
             />
           </div>
-
           <div className="form-group">
             <label htmlFor="work-note-text">Add Work Note</label>
             <textarea
@@ -1159,7 +1242,6 @@ function IncidentDetails({
               disabled={addingWorkNote}
             />
           </div>
-
           <div className="work-note-form-actions">
             <button
               type="button"
@@ -1170,7 +1252,6 @@ function IncidentDetails({
             </button>
           </div>
         </div>
-
         {workNotesLoading ? (
           <p className="activity-empty">Loading work notes...</p>
         ) : workNotes.length === 0 ? (
@@ -1191,20 +1272,17 @@ function IncidentDetails({
           </div>
         )}
       </section>
-
       <section className="activity-section">
         <div className="activity-header">
           <div>
             <p className="eyebrow">INCIDENT HISTORY</p>
             <h3>Activity Timeline</h3>
           </div>
-
           <span className="activity-count">
             {activities.length}{" "}
             {activities.length === 1 ? "event" : "events"}
           </span>
         </div>
-
         {activityLoading ? (
           <p className="activity-empty">Loading activity...</p>
         ) : activities.length === 0 ? (
@@ -1218,20 +1296,16 @@ function IncidentDetails({
                 <div className="activity-marker">
                   <span />
                 </div>
-
                 <div className="activity-content">
                   <div className="activity-title-row">
                     <strong>
                       {formatActivityType(activity.activityType)}
                     </strong>
-
                     <time>
                       {formatActivityDate(activity.createdAt)}
                     </time>
                   </div>
-
                   <p>{activity.description}</p>
-
                   {(activity.previousValue !== null ||
                     activity.newValue !== null) && (
                     <div className="activity-change">
@@ -1240,12 +1314,10 @@ function IncidentDetails({
                           {activity.previousValue || "None"}
                         </span>
                       )}
-
                       {activity.previousValue !== null &&
                         activity.newValue !== null && (
                           <span className="activity-arrow">→</span>
                         )}
-
                       {activity.newValue !== null && (
                         <span className="activity-new-value">
                           {activity.newValue || "None"}
@@ -1259,7 +1331,6 @@ function IncidentDetails({
           </div>
         )}
       </section>
-
       <div className="details-actions">
         <button
           type="button"
@@ -1269,7 +1340,6 @@ function IncidentDetails({
         >
           {deleting ? "Deleting..." : "Delete Incident"}
         </button>
-
         <button
           type="button"
           className="secondary-button"
@@ -1278,7 +1348,6 @@ function IncidentDetails({
         >
           Cancel
         </button>
-
         <button
           type="button"
           onClick={handleSave}
@@ -1290,5 +1359,4 @@ function IncidentDetails({
     </div>
   );
 }
-
 export default IncidentDetails;
