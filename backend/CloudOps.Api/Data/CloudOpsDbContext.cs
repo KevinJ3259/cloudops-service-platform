@@ -21,7 +21,11 @@ public class CloudOpsDbContext : DbContext
 
     public DbSet<IncidentAttachment> IncidentAttachments { get; set; }
 
-    public DbSet<KnowledgeArticle> KnowledgeArticles => Set<KnowledgeArticle>();
+    public DbSet<KnowledgeArticle> KnowledgeArticles =>
+        Set<KnowledgeArticle>();
+
+    public DbSet<ProblemIncident> ProblemIncidents =>
+        Set<ProblemIncident>();
 
     public DbSet<IncidentKnowledgeArticle> IncidentKnowledgeArticles =>
         Set<IncidentKnowledgeArticle>();
@@ -51,5 +55,27 @@ public class CloudOpsDbContext : DbContext
                 link.KnowledgeArticleId
             })
             .IsUnique();
+
+
+        modelBuilder.Entity<ProblemIncident>()
+            .HasOne(link => link.Problem)
+            .WithMany()
+            .HasForeignKey(link => link.ProblemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ProblemIncident>()
+            .HasOne(link => link.Incident)
+            .WithMany()
+            .HasForeignKey(link => link.IncidentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ProblemIncident>()
+            .HasIndex(link => new
+            {
+                link.ProblemId,
+                link.IncidentId
+            })
+            .IsUnique();
+
     }
 }

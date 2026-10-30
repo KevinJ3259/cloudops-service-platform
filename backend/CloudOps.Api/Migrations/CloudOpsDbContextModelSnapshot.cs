@@ -365,6 +365,33 @@ namespace CloudOps.Api.Migrations
                     b.ToTable("Problems");
                 });
 
+            modelBuilder.Entity("CloudOps.Api.Models.ProblemIncident", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("IncidentId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("LinkedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ProblemId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IncidentId");
+
+                    b.HasIndex("ProblemId", "IncidentId")
+                        .IsUnique();
+
+                    b.ToTable("ProblemIncidents");
+                });
+
             modelBuilder.Entity("CloudOps.Api.Models.IncidentActivity", b =>
                 {
                     b.HasOne("CloudOps.Api.Models.Incident", "Incident")
@@ -426,6 +453,25 @@ namespace CloudOps.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Incident");
+                });
+
+            modelBuilder.Entity("CloudOps.Api.Models.ProblemIncident", b =>
+                {
+                    b.HasOne("CloudOps.Api.Models.Incident", "Incident")
+                        .WithMany()
+                        .HasForeignKey("IncidentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CloudOps.Api.Models.Problem", "Problem")
+                        .WithMany()
+                        .HasForeignKey("ProblemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Incident");
+
+                    b.Navigation("Problem");
                 });
 
             modelBuilder.Entity("CloudOps.Api.Models.Incident", b =>
