@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import "./App.css";
 import IncidentDetails from "./IncidentDetails";
+import ProblemManagement from "./ProblemManagement";
 
 interface Incident {
   id: number;
@@ -711,7 +712,8 @@ function App() {
             </article>)}
           </div> : <p className="knowledge-empty">No knowledge articles match your search or filters.</p>}
         </section>
-
+        <ProblemManagement />
+        
         <section className="incidents-panel">
           <div className="panel-heading">
             <div>
