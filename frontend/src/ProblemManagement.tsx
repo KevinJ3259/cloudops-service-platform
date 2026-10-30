@@ -41,6 +41,10 @@ export default function ProblemManagement() {
   const [form, setForm] = useState<ProblemForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [selectedProblemId, setSelectedProblemId] = useState<number | null>(null);
+  const [linkedIncidents, setLinkedIncidents] = useState<{ incidentId: number; title: string; status: string; severity: string }[]>([]);
+  const [loadingIncidents, setLoadingIncidents] = useState(false);
+
 
   const loadProblems = useCallback(async () => {
     try {
@@ -57,6 +61,31 @@ export default function ProblemManagement() {
   }, []);
 
   useEffect(() => { void loadProblems(); }, [loadProblems]);
+  
+const loadLinkedIncidents = async (problemId: number) => {
+  setSelectedProblemId(problemId);
+  setLoadingIncidents(true);
+  setError("");
+
+  try {
+    const response = await fetch(`${API_URL}/${problemId}/incidents`);
+
+    if (!response.ok) {
+      throw new Error("Unable to load linked incidents.");
+    }
+
+    const data = await response.json();
+    setLinkedIncidents(data);
+  } catch (err) {
+    setError(
+      err instanceof Error ? err.message : "Unable to load linked incidents."
+    );
+    setLinkedIncidents([]);
+  } finally {
+    setLoadingIncidents(false);
+  }
+};
+
 
   const startNew = () => {
     setEditingId(null);
@@ -245,6 +274,11 @@ export default function ProblemManagement() {
                   <td>{new Date(problem.updatedAt).toLocaleString()}</td>
                   <td>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      <button 
+                        type="button" 
+                        onClick={() => void loadLinkedIncidents(problem.id)}>
+                        View Linked Incidents
+                      </button>
                       <button type="button" onClick={() => startEdit(problem)}>Edit</button>
                       <button type="button" className="knowledge-delete-button" disabled={deletingId === problem.id} onClick={() => void handleDelete(problem)}>
                         {deletingId === problem.id ? "Deleting..." : "Delete"}
@@ -257,6 +291,52 @@ export default function ProblemManagement() {
           </table>
         </div>
       )}
+      
+{selectedProblemId !== null && (
+  <div className="incidents-panel" style={{ padding: 24, marginTop: 20 }}>
+    <h3>Linked Incidents — Problem #{selectedProblemId}</h3>
+
+    <button
+      type="button"
+      onClick={() => {
+        setSelectedProblemId(null);
+        setLinkedIncidents([]);
+      }}
+    >
+      Close
+    </button>
+
+    {loadingIncidents ? (
+      <p>Loading linked incidents...</p>
+    ) : linkedIncidents.length === 0 ? (
+      <p>No incidents are linked to this problem.</p>
+    ) : (
+      <div className="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Incident</th>
+              <th>Status</th>
+              <th>Severity</th>
+            </tr>
+          </thead>
+          <tbody>
+            {linkedIncidents.map((incident) => (
+              <tr key={incident.incidentId}>
+                <td>#{incident.incidentId}</td>
+                <td>{incident.title}</td>
+                <td>{incident.status}</td>
+                <td>{incident.severity}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+)}
+
     </section>
   );
 }

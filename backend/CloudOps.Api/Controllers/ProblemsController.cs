@@ -26,6 +26,72 @@ public class ProblemsController : ControllerBase
             .ToListAsync());
     }
 
+    [HttpGet("{id}/incidents")]
+    public async Task<IActionResult> GetRelatedIncidents(int id)
+    {
+        var problemExists = await _context.Problems
+            .AnyAsync(p => p.Id == id);
+
+        if (!problemExists)
+            return NotFound("Problem not found.");
+
+        var incidents = await _context.ProblemIncidents
+            .Where(link => link.ProblemId == id)
+            .OrderByDescending(link => link.LinkedAt)
+            .Select(link => new
+            {
+                link.IncidentId,
+                link.Incident.Title,
+                link.Incident.Status,
+                link.Incident.Severity,
+                link.LinkedAt
+            })
+            .ToListAsync();
+
+        return Ok(incidents);
+    }
+
+    [HttpPost("{id:int}/incidents/{incidentId:int}")]
+    public async Task<IActionResult> LinkIncident(int id, int incidentId)
+    {
+        var problemExists = await _context.Problems
+            .AnyAsync(p => p.Id == id);
+
+        if (!problemExists)
+            return NotFound("Problem not found.");
+
+        var incidentExists = await _context.Incidents
+            .AnyAsync(i => i.Id == incidentId);
+
+        if (!incidentExists)
+            return NotFound("Incident not found.");
+
+        var alreadyLinked = await _context.ProblemIncidents
+            .AnyAsync(link =>
+                link.ProblemId == id &&
+                link.IncidentId == incidentId);
+
+        if (alreadyLinked)
+            return Conflict("Incident is already linked to this problem.");
+
+        var link = new ProblemIncident
+        {
+            ProblemId = id,
+            IncidentId = incidentId,
+            LinkedAt = DateTime.UtcNow
+        };
+
+        _context.ProblemIncidents.Add(link);
+        await _context.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Incident linked successfully.",
+            problemId = id,
+            incidentId
+        });
+    }
+
     [HttpGet("{id:int}")]
     public async Task<ActionResult<Problem>> GetProblem(int id)
     {
@@ -129,3 +195,5 @@ public class ProblemRequest
     public string? Workaround { get; set; }
     public string? PermanentFix { get; set; }
 }
+
+
