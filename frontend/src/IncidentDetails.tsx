@@ -1,4 +1,10 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
+
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5286/api/incidents"
+).replace(/\/$/, "");
+
 type Incident = {
   id: number;
   title: string;
@@ -165,8 +171,8 @@ function IncidentDetails({
         setLoading(true);
         setError("");
         const response = await fetch(
-          `http://localhost:5286/api/incidents/${incidentId}`
-        );
+  `${API_URL}/${incidentId}`
+);
         if (!response.ok) {
           throw new Error("Unable to load incident.");
         }
@@ -184,7 +190,7 @@ function IncidentDetails({
       try {
         setActivityLoading(true);
         const response = await fetch(
-          `http://localhost:5286/api/incidents/${incidentId}/activities`
+          `${API_URL}/${incidentId}/activities`
         );
         if (!response.ok) {
           throw new Error("Unable to load incident activity.");
@@ -201,7 +207,7 @@ function IncidentDetails({
       try {
         setWorkNotesLoading(true);
         const response = await fetch(
-          `http://localhost:5286/api/incidents/${incidentId}/worknotes`
+          `${API_URL}/${incidentId}/worknotes`
         );
         if (!response.ok) throw new Error("Unable to load work notes.");
         const data: IncidentWorkNote[] = await response.json();
@@ -216,7 +222,7 @@ function IncidentDetails({
       try {
         setCommunicationsLoading(true);
         const response = await fetch(
-          `http://localhost:5286/api/incidents/${incidentId}/communications`
+          `${API_URL}/${incidentId}/communications`
         );
         if (!response.ok) throw new Error("Unable to load communications.");
         const data: IncidentCommunication[] = await response.json();
@@ -231,7 +237,7 @@ function IncidentDetails({
       try {
         setAttachmentsLoading(true);
         const response = await fetch(
-          `http://localhost:5286/api/incidents/${incidentId}/attachments`
+          `${API_URL}/${incidentId}/attachments`
         );
         if (!response.ok) throw new Error("Unable to load attachments.");
         const data: IncidentAttachment[] = await response.json();
@@ -246,7 +252,7 @@ function IncidentDetails({
       try {
         setPostIncidentReviewLoading(true);
         const response = await fetch(
-          `http://localhost:5286/api/incidents/${incidentId}/post-incident-review`
+         `${API_URL}/${incidentId}/post-incident-review`
         );
         if (!response.ok) throw new Error("Unable to load post-incident review.");
         const data: PostIncidentReview = await response.json();
@@ -259,7 +265,7 @@ function IncidentDetails({
     }
     async function loadKnowledgeArticles() {
       try {
-        const response = await fetch("http://localhost:5286/api/knowledge-articles?status=Published");
+        const response = await fetch(`${API_URL.replace(/\/incidents$/, "")}/knowledge-articles`);
         if (!response.ok) throw new Error("Unable to load knowledge articles.");
         const data: KnowledgeArticle[] = await response.json();
         setKnowledgeArticles(data);
@@ -271,7 +277,7 @@ function IncidentDetails({
       try {
         setKnowledgeArticlesLoading(true);
         const response = await fetch(
-          `http://localhost:5286/api/incidents/${incidentId}/knowledge-articles`
+          `${API_URL}/${incidentId}/worknotes`,
         );
         if (!response.ok) throw new Error("Unable to load linked knowledge articles.");
         const data: IncidentKnowledgeArticle[] = await response.json();
@@ -301,7 +307,7 @@ function IncidentDetails({
   async function refreshActivities() {
     try {
       const response = await fetch(
-        `http://localhost:5286/api/incidents/${incidentId}/activities`
+        `${API_URL}/${incidentId}/activities`
       );
       if (!response.ok) throw new Error("Unable to refresh incident activity.");
       const data: IncidentActivity[] = await response.json();
@@ -322,7 +328,7 @@ function IncidentDetails({
       setAddingWorkNote(true);
       setError("");
       const response = await fetch(
-        `http://localhost:5286/api/incidents/${incident.id}/worknotes`,
+        `${API_URL}/${incidentId}/communications`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -356,8 +362,8 @@ function IncidentDetails({
       setAddingCommunication(true);
       setError("");
       const response = await fetch(
-        `http://localhost:5286/api/incidents/${incident.id}/communications`,
-        {
+  `${API_URL}/${incidentId}/communications`,
+  {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -398,7 +404,7 @@ function IncidentDetails({
       formData.append("file", attachmentFile);
       formData.append("uploadedBy", uploadedBy);
       const response = await fetch(
-        `http://localhost:5286/api/incidents/${incident.id}/attachments`,
+        `${API_URL}/${incidentId}/attachments`,
         {
           method: "POST",
           body: formData,
@@ -435,7 +441,7 @@ function IncidentDetails({
       setDeletingAttachmentId(attachment.id);
       setError("");
       const response = await fetch(
-        `http://localhost:5286/api/incidents/${incident.id}/attachments/${attachment.id}`,
+        `${API_URL}/${incidentId}/attachments/${attachment.id}`,
         { method: "DELETE" }
       );
       if (!response.ok) {
@@ -456,12 +462,12 @@ function IncidentDetails({
     }
   }
   function handleDownloadAttachment(attachment: IncidentAttachment) {
-    window.open(
-      `http://localhost:5286/api/incidents/${incidentId}/attachments/${attachment.id}`,
-      "_blank",
-      "noopener,noreferrer"
-    );
-  }
+  window.open(
+    `${API_URL}/${incidentId}/attachments/${attachment.id}`,
+    "_blank",
+    "noopener,noreferrer"
+  );
+}
   function formatFileSize(bytes: number) {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -469,7 +475,7 @@ function IncidentDetails({
   }
   async function refreshLinkedKnowledgeArticles() {
     const response = await fetch(
-      `http://localhost:5286/api/incidents/${incidentId}/knowledge-articles`
+      `${API_URL}/${incidentId}/knowledge-articles`
     );
     if (!response.ok) throw new Error("Unable to refresh linked knowledge articles.");
     const data: IncidentKnowledgeArticle[] = await response.json();
@@ -481,7 +487,7 @@ function IncidentDetails({
       setLinkingKnowledgeArticle(true);
       setError("");
       const response = await fetch(
-        `http://localhost:5286/api/incidents/${incident.id}/knowledge-articles/${selectedKnowledgeArticleId}`,
+       `${API_URL}/${incidentId}/post-incident-review`,
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ linkedBy: "Kevin Jordan" }) }
       );
       if (!response.ok) { const message = await response.text(); throw new Error(message || "Unable to link knowledge article."); }
@@ -500,7 +506,7 @@ function IncidentDetails({
       setUnlinkingKnowledgeArticleId(link.knowledgeArticleId);
       setError("");
       const response = await fetch(
-        `http://localhost:5286/api/incidents/${incident.id}/knowledge-articles/${link.knowledgeArticleId}`,
+        `${API_URL}/${incidentId}`,
         { method: "DELETE" }
       );
       if (!response.ok) { const message = await response.text(); throw new Error(message || "Unable to unlink knowledge article."); }
@@ -533,7 +539,7 @@ function IncidentDetails({
       setSavingPostIncidentReview(true);
       setError("");
       const response = await fetch(
-        `http://localhost:5286/api/incidents/${incident.id}/post-incident-review`,
+        `${API_URL}/${incidentId}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -570,9 +576,7 @@ function IncidentDetails({
         incident.status === "Resolved"
           ? incident.resolvedAt ?? new Date().toISOString()
           : null;
-      const response = await fetch(
-        `http://localhost:5286/api/incidents/${incident.id}`,
-        {
+      const response = await fetch(`${API_URL}/${incidentId}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -615,12 +619,9 @@ function IncidentDetails({
     try {
       setDeleting(true);
       setError("");
-      const response = await fetch(
-        `http://localhost:5286/api/incidents/${incident.id}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const response = await fetch(`${API_URL}/${incidentId}`, {
+  method: "DELETE",
+});
       if (!response.ok) {
         throw new Error("Unable to delete incident.");
       }
@@ -1023,7 +1024,7 @@ function IncidentDetails({
           <div className="work-notes-list">{linkedKnowledgeArticles.map((link) => (
             <article className="work-note-card" key={link.id}>
               <div className="work-note-meta"><div><strong>{link.knowledgeArticle.title}</strong><span className="communication-type-label">{link.knowledgeArticle.category}</span></div><time>{formatActivityDate(link.linkedAt)}</time></div>
-              <p>{link.knowledgeArticle.summary}</p><p>Linked by {link.linkedBy} • {link.knowledgeArticle.status}</p>
+              <p>{link.knowledgeArticle.summary}</p><p>Linked by {link.linkedBy} â€¢ {link.knowledgeArticle.status}</p>
               <div className="work-note-form-actions"><button type="button" className="delete-button" onClick={() => handleUnlinkKnowledgeArticle(link)} disabled={unlinkingKnowledgeArticleId === link.knowledgeArticleId}>{unlinkingKnowledgeArticleId === link.knowledgeArticleId ? "Unlinking..." : "Unlink"}</button></div>
             </article>
           ))}</div>
@@ -1098,7 +1099,7 @@ function IncidentDetails({
                 <p>
                   Uploaded by {attachment.uploadedBy}
                   {attachment.contentType
-                    ? ` • ${attachment.contentType}`
+                    ? ` â€¢ ${attachment.contentType}`
                     : ""}
                 </p>
                 <div className="work-note-form-actions">
@@ -1316,7 +1317,7 @@ function IncidentDetails({
                       )}
                       {activity.previousValue !== null &&
                         activity.newValue !== null && (
-                          <span className="activity-arrow">→</span>
+                          <span className="activity-arrow">â†’</span>
                         )}
                       {activity.newValue !== null && (
                         <span className="activity-new-value">
@@ -1360,3 +1361,4 @@ function IncidentDetails({
   );
 }
 export default IncidentDetails;
+

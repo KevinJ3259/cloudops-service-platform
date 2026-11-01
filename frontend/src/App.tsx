@@ -83,7 +83,9 @@ interface IncidentForm {
   subcategory: string;
 }
 
-const API_URL = "http://localhost:5286/api/incidents";
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5286/api/incidents";
 const KNOWLEDGE_API_URL = "http://localhost:5286/api/knowledge-articles";
 
 function getSlaStatus(incident: Incident): SlaStatus {
