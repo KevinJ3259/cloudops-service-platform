@@ -6,6 +6,19 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("CloudOpsFrontend", policy =>
+    {
+        policy.WithOrigins(
+                "https://cloudops-frontend-3jpr.onrender.com",
+                "http://localhost:5173"
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
@@ -30,7 +43,8 @@ builder.Services.AddHostedService<AutomaticEscalationBackgroundService>();
 // Allow local React development and deployed frontend
 var allowedOrigins = new List<string>
 {
-    "http://localhost:5173"
+    "http://localhost:5173",
+    "https://cloudops-frontend-3jpr.onrender.com"
 };
 
 var frontendUrl = builder.Configuration["FRONTEND_URL"];
