@@ -1,4 +1,3 @@
-
 using CloudOps.Api.Data;
 using CloudOps.Api.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -49,47 +48,6 @@ public class ProblemsController : ControllerBase
             .ToListAsync();
 
         return Ok(incidents);
-    }
-
-    [HttpPost("{id:int}/incidents/{incidentId:int}")]
-    public async Task<IActionResult> LinkIncident(int id, int incidentId)
-    {
-        var problemExists = await _context.Problems
-            .AnyAsync(p => p.Id == id);
-
-        if (!problemExists)
-            return NotFound("Problem not found.");
-
-        var incidentExists = await _context.Incidents
-            .AnyAsync(i => i.Id == incidentId);
-
-        if (!incidentExists)
-            return NotFound("Incident not found.");
-
-        var alreadyLinked = await _context.ProblemIncidents
-            .AnyAsync(link =>
-                link.ProblemId == id &&
-                link.IncidentId == incidentId);
-
-        if (alreadyLinked)
-            return Conflict("Incident is already linked to this problem.");
-
-        var link = new ProblemIncident
-        {
-            ProblemId = id,
-            IncidentId = incidentId,
-            LinkedAt = DateTime.UtcNow
-        };
-
-        _context.ProblemIncidents.Add(link);
-        await _context.SaveChangesAsync();
-
-        return Ok(new
-        {
-            message = "Incident linked successfully.",
-            problemId = id,
-            incidentId
-        });
     }
 
     [HttpGet("{id:int}")]
@@ -168,6 +126,25 @@ public class ProblemsController : ControllerBase
 
         return NoContent();
     }
+
+
+    [HttpDelete("{id:int}/incidents/{incidentId:int}")]
+    public async Task<IActionResult> UnlinkIncident(int id, int incidentId)
+    {
+        var link = await _context.ProblemIncidents
+            .FirstOrDefaultAsync(x =>
+                x.ProblemId == id &&
+                x.IncidentId == incidentId);
+
+        if (link == null)
+            return NotFound("Incident is not linked to this problem.");
+
+        _context.ProblemIncidents.Remove(link);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Incident unlinked successfully." });
+    }
+
 
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteProblem(int id)
