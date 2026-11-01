@@ -22,6 +22,26 @@ interface Incident {
   subcategory: string | null;
 }
 
+
+interface RecurringIncident {
+  id: number;
+  title: string;
+  description: string;
+  category: string;
+  subcategory: string | null;
+  status: string;
+  severity: string;
+  createdAt: string;
+}
+
+interface RecurringIncidentGroup {
+  title: string;
+  category: string;
+  occurrenceCount: number;
+  incidents: RecurringIncident[];
+}
+
+
 interface IncidentMetrics {
   totalIncidents: number;
   openIncidents: number;
@@ -158,6 +178,9 @@ function getSlaClassName(status: SlaStatus): string {
 
 function App() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [recurringGroups, setRecurringGroups] = useState<RecurringIncidentGroup[]>([]);
+  const [recurringLoading, setRecurringLoading] = useState(true);
+  const [recurringError, setRecurringError] = useState("");
   const [metrics, setMetrics] = useState<IncidentMetrics | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -236,6 +259,31 @@ function App() {
     }
   }, []);
 
+  
+  const loadRecurringIncidents = useCallback(async () => {
+    setRecurringLoading(true);
+    setRecurringError("");
+
+    try {
+      const response = await fetch(`${API_URL}/recurring`);
+
+      if (!response.ok) {
+        throw new Error("Unable to load recurring incidents.");
+      }
+
+      const data: RecurringIncidentGroup[] = await response.json();
+      setRecurringGroups(data);
+    } catch (err) {
+      setRecurringError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load recurring incidents."
+      );
+    } finally {
+      setRecurringLoading(false);
+    }
+  }, []);
+
   const loadKnowledgeArticles = useCallback(async () => {
     try {
       setKnowledgeLoading(true); setKnowledgeError("");
@@ -247,9 +295,19 @@ function App() {
     } finally { setKnowledgeLoading(false); }
   }, []);
 
+  
   useEffect(() => {
-    void loadIncidents(); void loadMetrics(); void loadKnowledgeArticles();
-  }, [loadIncidents, loadMetrics, loadKnowledgeArticles]);
+    void loadIncidents();
+    void loadMetrics();
+    void loadKnowledgeArticles();
+    void loadRecurringIncidents();
+  }, [
+    loadIncidents,
+    loadMetrics,
+    loadKnowledgeArticles,
+    loadRecurringIncidents,
+  ]);
+
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -712,6 +770,97 @@ function App() {
             </article>)}
           </div> : <p className="knowledge-empty">No knowledge articles match your search or filters.</p>}
         </section>
+        
+<section className="analytics-panel">
+  <div className="analytics-heading">
+    <div>
+      <p className="eyebrow">INCIDENT INTELLIGENCE</p>
+      <h2>Recurring Incident Detection</h2>
+      <p>
+        Identify repeated incidents that may indicate
+        underlying application or infrastructure problems.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      onClick={() => void loadRecurringIncidents()}
+      disabled={recurringLoading}
+    >
+      {recurringLoading ? "Checking..." : "Refresh Detection"}
+    </button>
+  </div>
+
+  {recurringLoading ? (
+    <p className="analytics-empty">
+      Checking for recurring incidents...
+    </p>
+  ) : recurringError ? (
+    <p className="error">{recurringError}</p>
+  ) : recurringGroups.length === 0 ? (
+    <p className="analytics-empty">
+      No recurring incidents detected.
+    </p>
+  ) : (
+    <div className="knowledge-grid">
+      {recurringGroups.map((group) => (
+        <article
+          className="analytics-card"
+          key={`${group.category}-${group.title}`}
+        >
+          <p className="eyebrow">RECURRING ISSUE</p>
+
+          <h3>{group.title}</h3>
+
+          <p>Category: {group.category}</p>
+
+          <p>
+            <strong>
+              Occurrences: {group.occurrenceCount}
+            </strong>
+          </p>
+
+          <h4>Related Incidents</h4>
+
+          {group.incidents.map((incident) => (
+            <div
+              key={incident.id}
+              style={{
+                marginTop: "12px",
+                paddingTop: "10px",
+                borderTop: "1px solid #334155",
+              }}
+            >
+              <p>
+                <strong>Incident #{incident.id}</strong>
+              </p>
+
+              <p>Status: {incident.status}</p>
+              <p>Severity: {incident.severity}</p>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedIncidentId(incident.id);
+                  setShowForm(false);
+                  document
+                    .querySelector(".incidents-panel")
+                    ?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    });
+                }}
+              >
+                View Incident #{incident.id}
+              </button>
+            </div>
+          ))}
+        </article>
+      ))}
+    </div>
+  )}
+</section>
+
         <ProblemManagement />
         
         <section className="incidents-panel">

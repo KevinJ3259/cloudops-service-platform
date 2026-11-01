@@ -39,6 +39,49 @@ public class IncidentsController : ControllerBase
         return Ok(incidents);
     }
 
+
+    // GET: api/incidents/recurring
+    [HttpGet("recurring")]
+    public async Task<IActionResult> GetRecurringIncidents()
+    {
+        var incidents = await _context.Incidents
+            .AsNoTracking()
+            .Select(i => new
+            {
+                i.Id,
+                i.Title,
+                i.Description,
+                i.Category,
+                i.Subcategory,
+                i.Status,
+                i.Severity,
+                i.CreatedAt
+            })
+            .ToListAsync();
+
+        var recurringGroups = incidents
+            .GroupBy(i => new
+            {
+                Title = i.Title.Trim().ToLowerInvariant(),
+                Category = (i.Category ?? "").Trim().ToLowerInvariant()
+            })
+            .Where(group => group.Count() >= 2)
+            .Select(group => new
+            {
+                title = group.First().Title,
+                category = group.First().Category,
+                occurrenceCount = group.Count(),
+                incidents = group
+                    .OrderByDescending(i => i.CreatedAt)
+                    .ToList()
+            })
+            .OrderByDescending(group => group.occurrenceCount)
+            .ToList();
+
+        return Ok(recurringGroups);
+    }
+
+
     // GET: api/incidents/metrics
     [HttpGet("metrics")]
     public async Task<IActionResult> GetIncidentMetrics()
