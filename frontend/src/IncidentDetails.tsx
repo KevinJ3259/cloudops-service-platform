@@ -277,7 +277,7 @@ function IncidentDetails({
       try {
         setKnowledgeArticlesLoading(true);
         const response = await fetch(
-          `${API_URL}/${incidentId}/worknotes`,
+          `${API_URL}/${incidentId}/knowledge-articles`
         );
         if (!response.ok) throw new Error("Unable to load linked knowledge articles.");
         const data: IncidentKnowledgeArticle[] = await response.json();
@@ -328,13 +328,13 @@ function IncidentDetails({
       setAddingWorkNote(true);
       setError("");
       const response = await fetch(
-        `${API_URL}/${incidentId}/communications`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ author, note }),
-        }
-      );
+  `${API_URL}/${incidentId}/worknotes`,
+  {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ author, note }),
+  }
+);
       if (!response.ok) {
         const message = await response.text();
         throw new Error(message || "Unable to add work note.");
