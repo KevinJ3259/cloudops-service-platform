@@ -858,6 +858,15 @@ function IncidentDetails({
           />
         </div>
       </div>
+      <div className="details-actions">
+  <button
+    type="button"
+    onClick={handleSave}
+    disabled={saving || deleting}
+  >
+    {saving ? "Saving..." : "Save Changes"}
+  </button>
+</div>
       <section className="sla-details-section">
         <div className="sla-details-header">
           <div>
