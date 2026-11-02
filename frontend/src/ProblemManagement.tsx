@@ -40,11 +40,13 @@ type ProblemForm = Pick<
   permanentFix: string;
 };
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5286/api";
+const INCIDENTS_URL =
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5286/api/incidents";
+
+const API_BASE_URL = INCIDENTS_URL.replace(/\/incidents\/?$/, "");
 
 const API_URL = `${API_BASE_URL}/problems`;
-const INCIDENTS_URL = `${API_BASE_URL}/incidents`;
 
 const emptyForm = (): ProblemForm => ({
   title: "",

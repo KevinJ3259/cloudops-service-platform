@@ -86,8 +86,10 @@ interface IncidentForm {
 const API_URL =
   import.meta.env.VITE_API_URL ||
   "http://localhost:5286/api/incidents";
-const KNOWLEDGE_API_URL = "http://localhost:5286/api/knowledge-articles";
 
+const API_BASE_URL = API_URL.replace(/\/incidents\/?$/, "");
+
+const KNOWLEDGE_API_URL = `${API_BASE_URL}/knowledge-articles`;
 function getSlaStatus(incident: Incident): SlaStatus {
   if (!incident.slaDueAt) {
     return "Not Set";
